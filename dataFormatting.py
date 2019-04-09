@@ -3,7 +3,7 @@ import pandas as pd
 import pathlib
 from typing import List
 
-CHARGE_OFF_WORDS = ['付', '支出', '借', '借方', '出账']
+CHARGE_OFF_WORDS = ['付', '支出', '借', '借方', '出账', '转出']
 TEST_HEADER = 3
 
 
@@ -224,6 +224,49 @@ def format_gfyh(dir_path: pathlib.Path) -> pd.DataFrame:
     return transactions
 
 
+def format_hebyh(dir_path: pathlib.Path) -> pd.DataFrame:
+    format_progress('开始分析哈尔滨银行账户……')
+    tmp_trans_list_by_name = []
+    for trans_file in dir_path.iterdir():
+        if trans_file.match('~*') or trans_file.match('*账户情况.xls*'):
+            continue
+        format_progress(trans_file.name + '……', True)
+        excel_file = pd.ExcelFile(trans_file)
+        tmp_trans_list_by_account = []
+        for sheet in excel_file.sheet_names:  # 对每一个工作表
+            header = get_header(excel_file, sheet)
+            if header == -1:
+                continue
+            else:
+                tmp_trans_sheet = excel_file.parse(
+                    sheet_name=sheet,
+                    header=header,
+                    dtype={
+                        '账号': str,
+                        '交易时间': str,
+                        '卡号': str,
+                        '机构号': str
+                    })
+                tmp_trans_list_by_account.append(tmp_trans_sheet)
+                continue
+        tmp_transactions = pd.concat(tmp_trans_list_by_account, sort=False)
+        tmp_trans_list_by_name.append(tmp_transactions)
+        format_progress('成功解析工作表' + str(len(tmp_trans_list_by_account)) + '/' +
+                        str(len(excel_file.sheet_names)))
+    transactions = pd.concat(tmp_trans_list_by_name, sort=False)
+    transactions['银行名称'] = dir_path.name
+    charge_off_amount(transactions['交易金额'], transactions['借贷标识'])
+    transactions = transactions.reindex(columns=[
+        '银行名称', '户名', '账号', '卡号', '交易时间', '渠道名称', '借贷标识', '币种名称', '交易金额', '余额',
+        '机构号', '柜员号', '现转标识', '附言'
+    ])
+    transactions.columns = [
+        '银行名称', '户名', '账号', '卡号', '交易日期', '交易方式', '收付标志', '币种', '金额(原币)', '余额',
+        '交易网点', '柜员号', '备注', '附言'
+    ]
+    return transactions
+
+
 def format_common(dir_path: pathlib.Path, deco_strings: str
                   or List[str] = '') -> pd.DataFrame:
     format_progress('开始分析' + dir_path.name + '账户……')
@@ -289,11 +332,13 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
                     tmp_trans_list_by_bank.append(format_common(dir, '交易明细'))
                 elif dir.name == '广发银行':
                     tmp_trans_list_by_bank.append(format_gfyh(dir))
+                elif dir.name == '哈尔滨银行':
+                    tmp_trans_list_by_bank.append(format_hebyh(dir))
                 else:
                     pass
         transactions = pd.concat(
             tmp_trans_list_by_bank, ignore_index=True, sort=False)
-        transactions.dropna(axis=0, how='any', subset=['交易日期'], inplace=True)
+        transactions.dropna(axis=0, how='any', subset=['金额(原币)'], inplace=True)
     except Exception as e:
         raise e
     return transactions
