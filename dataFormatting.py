@@ -2,14 +2,8 @@
 import pandas as pd
 import core
 import pathlib
+import statics as st
 from typing import List, Union
-
-COLUMN_NAMES = [
-    '银行名称', '户名', '账号', '卡号', '交易日期', '交易方式', '收付标志', '币种', '金额(原币)', '余额',
-    '对手户名', '对手账号', '对手开户行', '交易地区', '交易场所', '交易网点', '柜员号', '涉外交易代码', '交易代码',
-    '代办人', '代办人证件', '摘要', '附言', '其他'
-]
-TEST_HEADER = 3
 
 
 # 以下为账户分析函数
@@ -218,6 +212,8 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
                     tmp_trans_list_by_bank.append(format_bjyh(dir))
                 elif dir.name == '哈尔滨银行':
                     tmp_trans_list_by_bank.append(format_hebyh(dir))
+                elif dir.name == '华夏银行':
+                    tmp_trans_list_by_bank.append(format_hxyh(dir))
                 elif dir.name == '工商银行':
                     tmp_trans_list_by_bank.append(format_gsyh(dir))
                 elif dir.name == '渤海银行':
@@ -239,7 +235,7 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
         transactions = pd.concat(tmp_trans_list_by_bank,
                                  ignore_index=True,
                                  sort=False)
-        transactions = transactions.reindex(columns=COLUMN_NAMES)
+        transactions = transactions.reindex(columns=st.COLUMN_ORDER)
         core.format_progress('全部分析完成，成功解析流水' + str(len(transactions)) + '条')
     except Exception as e:
         raise e

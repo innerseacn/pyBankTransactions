@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
 import pathlib
+import statics as st
 from typing import List, Dict, Union
-
-CHARGE_OFF_WORDS = ['付', '支出', '借', '借方', '出账', '转出', 'D', '0']
 
 
 def format_progress(msg: str, no_return: bool = False) -> None:
@@ -16,7 +15,7 @@ def format_progress(msg: str, no_return: bool = False) -> None:
 # 将出账金额置为复数，方便观看。但要注意有些冲抵金额本身为负，
 # 应用本函数后变为正数，所以自动化计算需要结合收付标志处理。
 def charge_off_amount(amount: pd.Series, sign: pd.Series) -> None:
-    amount[sign.isin(CHARGE_OFF_WORDS)] *= -1
+    amount[sign.isin(st.CHARGE_OFF_WORDS)] *= -1
 
 
 def get_account_name(name: str, deco_strings: Union[str, List[str]]) -> str:
@@ -92,7 +91,7 @@ def parse_transaction(dir_path: pathlib.Path, test_header: int,
                 if bank_paras.col_rename is not None:
                     tmp_trans_sheet.rename(columns=bank_paras.col_rename,
                                            inplace=True)
-                # 如果本文件名符合如下规则, 此时工作表名就是户名
+                # 如果本文件名符合如下规则, 此时认为工作表名就是户名，若deco_strings为空则增加户名列
                 if trans_file.match('*交易*明细*.xls*') and (
                         bank_paras.deco_strings is None):
                     tmp_trans_sheet['户名'] = sheet
