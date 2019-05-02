@@ -3,24 +3,15 @@ import pandas as pd
 import core
 import pathlib
 import statics as st
-from typing import List, Union
 
 
 # 以下为账户分析函数
-def parse_accounts(dir_path: pathlib.Path) -> pd.DataFrame:
-    acc_file = next(dir_path.glob(dir_path.name + '账户情况.xls*'))
+def parse_acc_file(acc_file: pathlib.Path) -> pd.DataFrame:
     format_progress(acc_file.name)
-    accounts = pd.read_excel(acc_file,
-                             header=1,
-                             dtype={
-                                 '证件号码': str,
-                                 '账号': str,
-                                 '开户日期': str
-                             })
+    accounts = pd.read_excel(acc_file, header=1, dtype=str)
     accounts.dropna(axis=0, how='any', subset=['账号'], inplace=True)
     accounts.dropna(axis=1, how='all', inplace=True)
     accounts['户名'].fillna(method='ffill', inplace=True)
-    accounts['银行'] = dir_path.name
     return accounts
 
 
@@ -58,11 +49,6 @@ def format_boc_account_map(dir_path: pathlib.Path) -> pd.DataFrame:
     return account_map
 
 
-# 以下为流水分析函数
-def format_jsyh(dir_path: pathlib.Path) -> pd.DataFrame:
-    pass  # 建设银行太复杂回头在写
-
-
 def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     core.format_progress('开始分析银行流水……')
     tmp_trans_list_by_bank = []
@@ -71,7 +57,7 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
         try:
             if dir.is_dir():
                 tmp_trans_list_by_bank.append(
-                    core.parse_transaction(dir, st.BANK_PARAS[dir.name]))
+                    core.parse_base_dir(dir, st.BANK_PARAS[dir.name]))
         except KeyError as k:
             tmp_banks_no_support += 1
             core.format_progress('暂不支持{}'.format(k))
@@ -79,6 +65,7 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
                              ignore_index=True,
                              sort=False)
     transactions = transactions.reindex(columns=st.COLUMN_ORDER)
+    transactions['户名'] = transactions['户名'].map(str.strip)
     core.format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
         len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
     return transactions

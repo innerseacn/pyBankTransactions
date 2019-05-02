@@ -29,7 +29,8 @@ class BankPara:
                  sheet_name_is_acc_name: bool = False,
                  has_minus_amounts: bool = False,
                  second_amount_col: str = None,
-                 deco_strings: Union[str, List[str]] = None) -> None:
+                 deco_strings: Union[str, List[str]] = None,
+                 use_dir_name: bool = False) -> None:
         # 列名映射字典{'原列名':'新列名'}，将源文件列名映射到COLUMN_ORDER中的输出列名
         self.col_map = col_map
         # 是否工作表名就是户名
@@ -40,6 +41,8 @@ class BankPara:
         self.second_amount_col = second_amount_col
         # 在包含户名的文件名中将要被截取掉的多余字串，文件中包含户名传入None，否则需要传入需从文件名截取掉的字串，不需截取转入空串
         self.deco_strings = deco_strings
+        # 户名实际未包含在文件名中，而是包含在目录名中
+        self.use_dir_name = use_dir_name
 
 
 BANK_PARAS = {}
@@ -127,6 +130,7 @@ BANK_PARAS['交通银行'] = BankPara(
         '交易机构所属分行': '交易地区',
         '交易机构号': '交易网点',
         '借贷方标志': '借贷标志',
+        '对方帐号': '对方账号',
         '货币码': '币种',
         '技术摘要': '摘要'
     },
@@ -219,3 +223,23 @@ BANK_PARAS['中信银行'] = BankPara(
         '核心交易代码': '交易代码',
         '币种中文': '币种',
     })
+BANK_PARAS['招商银行'] = BankPara(
+    col_map={
+        '客户名称': '户名',
+        '交易卡号': '账号',
+        '联机余额': '账户余额',
+        '交易摘要': '摘要',
+        '文字摘要': '备注',
+        '对手帐号': '对方账号',
+        '对手名称': '对方户名',
+        '对手开户行': '对方开户行',
+        '我方摘要': '摘要',
+        '对方开户机构名称': '对方开户行',
+        '对方客户名称': '对方户名',
+        '业务编号': '账号',
+        '对方业务编号': '对方账号',
+        '交易机构': '交易网点',
+    },
+    has_minus_amounts=True,
+    deco_strings='',
+    use_dir_name=True)
