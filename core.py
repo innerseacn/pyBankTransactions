@@ -119,7 +119,7 @@ def parse_base_dir(dir_path: pathlib.Path,
     tmp_trans['交易日期'] = pd.to_datetime(tmp_trans['交易日期'])
     tmp_trans['交易金额'] = pd.to_numeric(tmp_trans['交易金额'])
     if not bank_para.has_minus_amounts:
-        tmp_trans['借贷标志'] = tmp_trans['借贷标志'].map(str.strip)
+        tmp_trans['借贷标志'] = tmp_trans['借贷标志'].str.strip()
         charge_off_amount(tmp_trans['交易金额'], tmp_trans['借贷标志'])
     format_progress('    分析结束，共解析{}/{}条'.format(len(tmp_trans), tmp_all_nums))
     if len(tmp_trans) < tmp_all_nums:

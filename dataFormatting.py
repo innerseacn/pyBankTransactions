@@ -65,7 +65,9 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
                              ignore_index=True,
                              sort=False)
     transactions = transactions.reindex(columns=st.COLUMN_ORDER)
-    transactions['户名'] = transactions['户名'].map(str.strip)
+    tmp_cols = transactions.select_dtypes(include='object').columns
+    for col in tmp_cols:
+        transactions[col] = transactions[col].str.strip()
     core.format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
         len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
     return transactions
