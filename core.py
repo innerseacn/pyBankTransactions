@@ -12,10 +12,25 @@ def format_progress(msg: str, no_return: bool = False) -> None:
         print(msg)
 
 
+# 在两列金额中，有空值则返回空值；没有空值则返回0值
+def get_none_or_zero_lines(amount_col: pd.Series) -> pd.Series:
+    num = pd.to_numeric(amount_col)
+    num_na = num.isna()
+    if num_na.any():
+        return num_na
+    else:
+        return num == 0
+
+
 # 将出账金额置为复数，方便观看。但要注意有些冲抵金额本身为负，
-# 应用本函数后变为正数，所以自动化计算需要结合收付标志处理。
-def charge_off_amount(amount: pd.Series, sign: pd.Series) -> None:
-    amount[sign.isin(st.CHARGE_OFF_WORDS)] *= -1
+# 应用本函数后变为正数，所以自动化计算需要结合收付标志处理
+def amount_set_minus(trans: pd.DataFrame,
+                     second_amount_col: str = None) -> None:
+    if '借贷标志' in trans.columns:
+        trans['交易金额'][trans['借贷标志'].isin(st.CHARGE_OFF_WORDS)] *= -1
+    elif second_amount_col in trans.columns:
+        none_or_zero_lines = get_none_or_zero_lines(trans[second_amount_col])
+        trans['交易金额'][none_or_zero_lines] *= -1
 
 
 def get_account_name(name: str, deco_strings: Union[str, List[str]]) -> str:
@@ -41,7 +56,8 @@ def get_header(excel_file: pd.ExcelFile, sheet: str, test_header: int) -> int:
 
 # 在入账出账单独成列时，将第二列合并到第一列
 def combine_amount_cols(data: pd.DataFrame, second_amount_col: str) -> None:
-    data['交易金额'][pd.to_numeric(data['交易金额']) == 0] = data[second_amount_col]
+    none_or_zero_lines = get_none_or_zero_lines(data['交易金额'])
+    data['交易金额'][none_or_zero_lines] = data[second_amount_col]
 
 
 # 解析流水文件，将结果保存在tmp_trans_list_by_file中，并返回总行数
@@ -73,6 +89,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
             continue
     tmp_transactions = pd.concat(tmp_trans_list_by_account, sort=False)
     try:
+        if bank_para.second_amount_col is not None:
+            combine_amount_cols(tmp_transactions, bank_para.second_amount_col)
         tmp_transactions.dropna(axis=0,
                                 how='any',
                                 subset=['交易日期', '交易金额'],
@@ -86,8 +104,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
             tmp_transactions['户名'] = get_account_name(tmp_name,
                                                       bank_para.deco_strings)
         tmp_trans_list_by_file.append(tmp_transactions)
-    except KeyError:
-        format_progress('工作表映射错误，跳过文件\n                ', True)
+    except KeyError as k:
+        format_progress('字段{}映射错误，跳过文件\n                '.format(k), True)
     format_progress('工作表解析成功{}/失败{}，解析流水{}/{}条'.format(
         len(tmp_trans_list_by_account), tmp_not_parsed, len(tmp_transactions),
         tmp_line_num))
@@ -113,14 +131,12 @@ def parse_base_dir(dir_path: pathlib.Path,
                                                  tmp_trans_list_by_file)
     tmp_trans = pd.concat(tmp_trans_list_by_file, sort=False)
     tmp_trans['银行名称'] = dir_path.name
-    if bank_para.second_amount_col is not None:
-        combine_amount_cols(tmp_trans, bank_para.second_amount_col)
     # tmp_trans = tmp_trans.reindex(columns=st.COLUMN_ORDER)
     tmp_trans['交易日期'] = pd.to_datetime(tmp_trans['交易日期'])
     tmp_trans['交易金额'] = pd.to_numeric(tmp_trans['交易金额'])
     if not bank_para.has_minus_amounts:
-        tmp_trans['借贷标志'] = tmp_trans['借贷标志'].str.strip()
-        charge_off_amount(tmp_trans['交易金额'], tmp_trans['借贷标志'])
+        amount_set_minus(tmp_trans,
+                         second_amount_col=bank_para.second_amount_col)
     format_progress('    分析结束，共解析{}/{}条'.format(len(tmp_trans), tmp_all_nums))
     if len(tmp_trans) < tmp_all_nums:
         format_progress(

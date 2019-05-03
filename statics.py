@@ -243,3 +243,15 @@ BANK_PARAS['招商银行'] = BankPara(
     has_minus_amounts=True,
     deco_strings='',
     use_dir_name=True)
+BANK_PARAS['农业银行'] = BankPara(
+    col_map={
+        '产品号': '卡号',
+        '借方交易金额': '交易金额',
+        '交易后余额': '账户余额',
+        '对方银行': '对方开户行',
+        '交易对手账号': '对方账号',
+        '交易渠道': '交易方式',
+        '交易地点': '交易网点',
+        '对方省市代号': '交易地区',
+    },
+    second_amount_col='贷方交易金额')
