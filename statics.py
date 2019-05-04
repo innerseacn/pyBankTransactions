@@ -25,12 +25,13 @@ COL_MAP_COMMON = {
 
 class BankPara:
     def __init__(self,
-                 col_map: Dict[str, str],
+                 col_map: Dict[str, str] = None,
                  sheet_name_is_acc_name: bool = False,
                  has_minus_amounts: bool = False,
                  second_amount_col: str = None,
                  deco_strings: Union[str, List[str]] = None,
-                 use_dir_name: bool = False) -> None:
+                 use_dir_name: bool = False,
+                 special_func: str = None) -> None:
         # 列名映射字典{'原列名':'新列名'}，将源文件列名映射到COLUMN_ORDER中的输出列名
         self.col_map = col_map
         # 是否工作表名就是户名
@@ -43,6 +44,8 @@ class BankPara:
         self.deco_strings = deco_strings
         # 户名实际未包含在文件名中，而是包含在目录名中
         self.use_dir_name = use_dir_name
+        # 特殊处理标志，使用专门方法解析
+        self.special_func = special_func
 
 
 BANK_PARAS = {}
@@ -255,3 +258,4 @@ BANK_PARAS['农业银行'] = BankPara(
         '对方省市代号': '交易地区',
     },
     second_amount_col='贷方交易金额')
+BANK_PARAS['中国银行'] = BankPara(special_func='中国银行')
