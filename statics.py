@@ -258,7 +258,8 @@ BANK_PARAS['农业银行'] = BankPara(
         '对方省市代号': '交易地区',
     },
     second_amount_col='贷方交易金额')
-BANK_PARAS['中国银行'] = BankPara(special_func='中国银行')
+BANK_PARAS['中国银行'] = BankPara(special_fun   c='中国银行')
+BANK_PARAS['建设银行'] = BankPara(special_func='建设银行')
 BANK_PARAS['威海银行'] = BankPara(
     col_map={
         '币别': '币种',
