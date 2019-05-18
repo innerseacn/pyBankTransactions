@@ -26,7 +26,7 @@ COL_MAP_COMMON = {
 class BankPara:
     def __init__(self,
                  col_map: Dict[str, str] = None,
-                 sheet_name_is_acc_name: bool = False,
+                 sheet_name_is: str = None,
                  has_minus_amounts: bool = False,
                  second_amount_col: str = None,
                  deco_strings: Union[str, List[str]] = None,
@@ -34,8 +34,8 @@ class BankPara:
                  special_func: str = None) -> None:
         # 列名映射字典{'原列名':'新列名'}，将源文件列名映射到COLUMN_ORDER中的输出列名
         self.col_map = col_map
-        # 是否工作表名就是户名
-        self.sheet_name_is_acc_name = sheet_name_is_acc_name
+        # 工作表名的内容是什么（户名、账号）
+        self.sheet_name_is = sheet_name_is
         # 金额列支出数额为负数
         self.has_minus_amounts = has_minus_amounts
         # 当流水中入账和出账各自成一列时，此项赋两列的列名，否则为None
@@ -61,7 +61,7 @@ BANK_PARAS['北京银行'] = BankPara(
         '开户银行机构名称': '交易网点',
         '交易附言': '附言'
     },
-    sheet_name_is_acc_name=True)
+    sheet_name_is='户名')
 BANK_PARAS['华夏银行'] = BankPara(
     col_map={
         '客户名称': '户名',
@@ -259,3 +259,17 @@ BANK_PARAS['农业银行'] = BankPara(
     },
     second_amount_col='贷方交易金额')
 BANK_PARAS['中国银行'] = BankPara(special_func='中国银行')
+BANK_PARAS['威海银行'] = BankPara(
+    col_map={
+        '币别': '币种',
+        '借方发生额': '交易金额',
+        '交易渠道': '交易方式',
+        '交易机构名称': '交易网点',
+        '摘要代码': '摘要',
+        '对方名称': '对方户名',
+        '交易对方行名': '对方开户行',
+        '交易类别': '附言',
+    },
+    sheet_name_is='账号',
+    deco_strings='流水',
+    second_amount_col='贷方发生额')

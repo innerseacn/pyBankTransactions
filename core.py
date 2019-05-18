@@ -166,13 +166,16 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
                                                    dtype=str)
                 tmp_trans_sheet.rename(columns=bank_para.col_map, inplace=True)
                 # 如果本文件名符合如下规则, 此时认为工作表名就是户名
-                if trans_file.match(
-                        '交易明细模板*.xls*') and bank_para.sheet_name_is_acc_name:
+                if bank_para.sheet_name_is == '户名':
                     tmp_trans_sheet['户名'] = sheet
+                elif bank_para.sheet_name_is == '账号':
+                    tmp_trans_sheet['账号'] = sheet
                 tmp_trans_list_by_sheet.append(tmp_trans_sheet)
                 tmp_line_num += len(tmp_trans_sheet)
                 continue
-    tmp_transactions = pd.concat(tmp_trans_list_by_sheet, sort=False)
+    tmp_transactions = pd.concat(tmp_trans_list_by_sheet,
+                                 ignore_index=True,
+                                 sort=False)
     try:
         if bank_para.second_amount_col is not None:
             combine_amount_cols(tmp_transactions, bank_para.second_amount_col)
@@ -214,7 +217,9 @@ def parse_base_dir(dir_path: pathlib.Path,
             else:
                 tmp_all_nums += parse_trans_file(trans_file, bank_para,
                                                  tmp_trans_list_by_file)
-    tmp_trans = pd.concat(tmp_trans_list_by_file, sort=False)
+    tmp_trans = pd.concat(tmp_trans_list_by_file,
+                          ignore_index=True,
+                          sort=False)
     tmp_trans['银行名称'] = dir_path.name
     # tmp_trans = tmp_trans.reindex(columns=st.COLUMN_ORDER)
     tmp_trans['交易日期'] = pd.to_datetime(tmp_trans['交易日期'])
