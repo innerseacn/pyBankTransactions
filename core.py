@@ -142,12 +142,32 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
 
 # 建设银行
 def parse_trans_ccb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
+    def _parse_sheet(row_data, header, trans_list_by_sheet):
+        header_lines = row_data.index[row_data.duplicated()].to_list()
+        header_lines.append(len(row_data) + 1)
+        _begin = 2
+        line_num = 0
+        for _end in header_lines:
+            tmp_trans = row_data.iloc[_begin:_end - 1]
+            tmp_trans.columns = header.columns
+            tmp_acc_str = row_data.iloc[_begin - 2, 0]
+            if isinstance(tmp_acc_str, str):
+                tmp_acc = tmp_acc_str.replace('，', ':').split(':')
+                tmp_trans['户名'] = tmp_acc[1]
+                tmp_trans['账号'] = tmp_acc[5]
+                tmp_trans['币种'] = tmp_acc[9]
+            if tmp_trans.iloc[0][0] != '查无结果':
+                line_num += len(tmp_trans)
+            trans_list_by_sheet.append(tmp_trans)
+            _begin = _end + 1
+        return line_num
+
     col_map = {
         '交易卡号': '卡号',
         '借方发生额': '交易金额',
+        '交易渠道': '交易方式',
         '交易机构名称': '交易网点',
         '对方行名': '对方开户行',
-        '交易渠道': '交易方式',
         '交易备注': '备注',
         '借贷方标志': '借贷标志',
     }
@@ -157,47 +177,50 @@ def parse_trans_ccb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     header1.rename(columns=col_map, inplace=True)
     row_data1 = excel_file.parse(sheet_name='个人活期明细信息-新一代',
                                  header=None,
-                                 skiprows=8)
+                                 skiprows=8,
+                                 dtype=str)
     first_amount_col = pd.to_numeric(row_data1[5], errors='coerce') * -1
     second_amount_col = pd.to_numeric(row_data1[6], errors='coerce')
     first_amount_col[first_amount_col == 0] = second_amount_col
     row_data1[5] = first_amount_col
-    header_lines1 = row_data1.index[row_data1.duplicated()].to_list()
-    header_lines1.append(len(row_data1) + 1)
-    _begin = 2
-    for _end in header_lines1:
-        tmp_trans = row_data1.iloc[_begin:_end - 1]
-        tmp_trans.columns = header1.columns
-        tmp_acc_str = row_data1.iloc[_begin - 2][0]
-        if isinstance(tmp_acc_str, str):
-            tmp_acc = tmp_acc_str.replace('，', ':').split(':')
-            tmp_trans['户名'] = tmp_acc[1]
-            tmp_trans['账号'] = tmp_acc[5]
-            tmp_trans['币种'] = tmp_acc[9]
-        tmp_line_num += len(tmp_trans)
-        tmp_trans_list_by_sheet.append(tmp_trans)
-        _begin = _end + 1
+    tmp_line_num += _parse_sheet(row_data1, header1, tmp_trans_list_by_sheet)
     # 分析定期流水
     header2 = excel_file.parse(sheet_name='个人定期明细信息-新一代', header=9, nrows=0)
     header2.rename(columns=col_map, inplace=True)
     row_data2 = excel_file.parse(sheet_name='个人定期明细信息-新一代',
                                  header=None,
-                                 skiprows=8)
-    header_lines2 = row_data2.index[row_data2.duplicated()].to_list()
-    header_lines2.append(len(row_data2) + 1)
-    _begin = 2
-    for _end in header_lines2:
-        tmp_trans = row_data2.iloc[_begin:_end - 1]
-        tmp_trans.columns = header2.columns
-        tmp_acc_str = row_data2.iloc[_begin - 2][0]
-        if isinstance(tmp_acc_str, str):
-            tmp_acc = tmp_acc_str.replace('，', ':').split(':')
-            tmp_trans['户名'] = tmp_acc[1]
-            tmp_trans['账号'] = tmp_acc[5]
-            tmp_trans['币种'] = tmp_acc[11]
-        tmp_line_num += len(tmp_trans)
-        tmp_trans_list_by_sheet.append(tmp_trans)
-        _begin = _end + 1
+                                 skiprows=8,
+                                 dtype=str)
+    tmp_line_num += _parse_sheet(row_data2, header2, tmp_trans_list_by_sheet)
+    return tmp_line_num
+
+
+# 邮储银行
+def parse_trans_psbc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
+    col_map = {
+        '交易渠道': '交易方式',
+        '交易机构名称': '交易网点',
+        '对方账号/卡号/汇票号': '对方账号',
+        '对方开户机构': '对方开户行',
+    }
+    tmp_line_num = 0
+    for sheet in excel_file.sheet_names:
+        tmp_acc_strs = excel_file.parse(sheet_name=sheet, header=None, nrows=4)
+        _tmp_str = tmp_acc_strs.iloc[1, 0].split(':')
+        _name = _tmp_str[2]
+        _account = _tmp_str[1].split()[0]
+        _currency = tmp_acc_strs.iloc[3, 0].split(':')[1].split()[0]
+        tmp_trans_sheet = excel_file.parse(sheet_name=sheet,
+                                           header=5,
+                                           dtype=str,
+                                           skipfooter=3)
+        tmp_trans_sheet.columns = tmp_trans_sheet.columns.str.strip()
+        tmp_trans_sheet.rename(columns=col_map, inplace=True)
+        tmp_trans_sheet['户名'] = _name
+        tmp_trans_sheet['账号'] = _account
+        tmp_trans_sheet['币种'] = _currency
+        tmp_trans_list_by_sheet.append(tmp_trans_sheet)
+        tmp_line_num += len(tmp_trans_sheet)
     return tmp_line_num
 
 
@@ -213,6 +236,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
         tmp_line_num = parse_trans_boc(excel_file, tmp_trans_list_by_sheet)
     elif bank_para.special_func == '建设银行':
         tmp_line_num = parse_trans_ccb(excel_file, tmp_trans_list_by_sheet)
+    elif bank_para.special_func == '邮储银行':
+        tmp_line_num = parse_trans_psbc(excel_file, tmp_trans_list_by_sheet)
     else:  # 其他银行
         for sheet in excel_file.sheet_names:  # 对每一个工作表
             header = get_header(excel_file, sheet, st.TEST_HEADER)  # 寻找表头
@@ -253,6 +278,10 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
             tmp_transactions['户名'] = get_account_name(tmp_name,
                                                       bank_para.deco_strings)
         tmp_trans_list_by_file.append(tmp_transactions)
+        if (tmp_line_num -
+                len(tmp_transactions)) == (bank_para.footer *
+                                           len(tmp_trans_list_by_sheet)):
+            tmp_line_num = len(tmp_transactions)
     except KeyError as k:
         format_progress('字段{}映射错误，跳过文件\n                '.format(k), True)
     format_progress('工作表解析成功{}/失败{}，解析流水{}/{}条'.format(
@@ -273,7 +302,8 @@ def parse_base_dir(dir_path: pathlib.Path,
                 tmp_all_nums += parse_trans_file(sub_file, bank_para,
                                                  tmp_trans_list_by_file)
         else:  # 对每一个文件
-            if trans_file.match('~*') or trans_file.match('*账户情况.xls*'):
+            if trans_file.match('~*') or trans_file.match(dir_path.name +
+                                                          '账户*'):
                 continue  # 如是无用文件则跳过
             else:
                 tmp_all_nums += parse_trans_file(trans_file, bank_para,
@@ -293,3 +323,27 @@ def parse_base_dir(dir_path: pathlib.Path,
         format_progress(
             '                   ^----------------------------- 请查找问题，若无问题请忽略')
     return tmp_trans
+
+
+def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
+    format_progress('开始分析银行流水……')
+    tmp_trans_list_by_bank = []
+    tmp_banks_no_support = 0
+    for dir in base_path.iterdir():
+        try:
+            if dir.is_dir():
+                tmp_trans_list_by_bank.append(
+                    parse_base_dir(dir, st.BANK_PARAS[dir.name]))
+        except KeyError as k:
+            tmp_banks_no_support += 1
+            format_progress('暂不支持{}'.format(k))
+    transactions = pd.concat(tmp_trans_list_by_bank,
+                             ignore_index=True,
+                             sort=False)
+    transactions = transactions.reindex(columns=st.COLUMN_ORDER)
+    tmp_cols = transactions.select_dtypes(include='object').columns
+    for col in tmp_cols:
+        transactions[col] = transactions[col].str.strip()
+    format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
+        len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
+    return transactions

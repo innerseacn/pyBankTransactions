@@ -31,7 +31,8 @@ class BankPara:
                  second_amount_col: str = None,
                  deco_strings: Union[str, List[str]] = None,
                  use_dir_name: bool = False,
-                 special_func: str = None) -> None:
+                 special_func: str = None,
+                 footer: int = 0) -> None:
         # 列名映射字典{'原列名':'新列名'}，将源文件列名映射到COLUMN_ORDER中的输出列名
         self.col_map = col_map
         # 工作表名的内容是什么（户名、账号）
@@ -46,6 +47,8 @@ class BankPara:
         self.use_dir_name = use_dir_name
         # 特殊处理标志，使用专门方法解析
         self.special_func = special_func
+        # 需要跳过的页脚行数
+        self.footer = footer
 
 
 BANK_PARAS = {}
@@ -118,7 +121,8 @@ BANK_PARAS['哈尔滨银行'] = BankPara(
         '币种名称': '币种',
         '机构号': '交易网点',
         '现转标识': '摘要',
-    })
+    },
+    footer=5)
 BANK_PARAS['交通银行'] = BankPara(
     col_map={
         '主记账帐号': '账号',
@@ -213,7 +217,8 @@ BANK_PARAS['兴业银行'] = BankPara(
     deco_strings='')
 BANK_PARAS['渣打银行'] = BankPara(
     col_map=COL_MAP_COMMON,
-    deco_strings='')
+    deco_strings='',
+    footer=2)
 BANK_PARAS['中信银行'] = BankPara(
     col_map={
         '交易码': '交易代码',
@@ -257,9 +262,8 @@ BANK_PARAS['农业银行'] = BankPara(
         '交易地点': '交易网点',
         '对方省市代号': '交易地区',
     },
-    second_amount_col='贷方交易金额')
-BANK_PARAS['中国银行'] = BankPara(special_fun   c='中国银行')
-BANK_PARAS['建设银行'] = BankPara(special_func='建设银行')
+    second_amount_col='贷方交易金额',
+    footer=1)
 BANK_PARAS['威海银行'] = BankPara(
     col_map={
         '币别': '币种',
@@ -274,3 +278,6 @@ BANK_PARAS['威海银行'] = BankPara(
     sheet_name_is='账号',
     deco_strings='流水',
     second_amount_col='贷方发生额')
+BANK_PARAS['中国银行'] = BankPara(special_func='中国银行')
+BANK_PARAS['建设银行'] = BankPara(special_func='建设银行')
+BANK_PARAS['邮储银行'] = BankPara(special_func='邮储银行')
