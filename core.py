@@ -65,6 +65,7 @@ def combine_amount_cols(data: pd.DataFrame, second_amount_col: str) -> None:
 def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     col_map = {
         '姓名': '户名',
+        '客户姓名': '户名',
         '交易后可抵用金额': '账户余额',
         '主账号': '账号',
         '货币': '币种',
@@ -86,9 +87,17 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     }
     tmp_line_num = 0
     # 解析旧线
-    old_line_accs = excel_file.parse(sheet_name='旧线账号',
-                                     usecols='C,D',
-                                     dtype=str)
+    if '旧线账号' in excel_file.sheet_names:
+        old_line_accs = excel_file.parse(sheet_name='旧线账号',
+                                         usecols='C,D',
+                                         dtype=str)
+    elif '旧账号' in excel_file.sheet_names:
+        old_line_accs = excel_file.parse(sheet_name='旧账号',
+                                         usecols='C,D',
+                                         dtype=str)
+    else:
+        format_progress(excel_file.sheet_names)
+        raise Exception('中国银行不包含旧线账号或旧账号')
     old_line_accs.dropna(axis=0, how='any', subset=['卡号'], inplace=True)
     old_line_accs.drop_duplicates(inplace=True)
     old_line_accs['卡号'] = old_line_accs.groupby('账号')['卡号'].apply(
@@ -109,15 +118,17 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     new_line_accs = excel_file.parse(sheet_name='新线账号',
                                      usecols='A,D,E',
                                      dtype=str)
-    new_line_accs.dropna(axis=0, how='any', subset=['卡号'], inplace=True)
     new_line_accs.drop_duplicates(inplace=True)
+    new_line_accs_no_na = new_line_accs.dropna(axis=0,
+                                               how='any',
+                                               subset=['卡号'])
     # 存在同一账号对应多个卡号的情况，将其合并到一行
-    new_line_accs = new_line_accs.groupby(['姓名', '主账号'])['卡号'].apply(
-        '/'.join).reset_index()
+    new_line_accs_no_na = new_line_accs_no_na.groupby(
+        ['姓名', '主账号'])['卡号'].apply('/'.join).reset_index()
     new_line_trans = excel_file.parse(sheet_name='新线交易', dtype=str)
     tmp_line_num += len(new_line_trans)
     new_line_trans = pd.merge(new_line_trans,
-                              new_line_accs[['卡号', '主账号']],
+                              new_line_accs_no_na[['卡号', '主账号']],
                               how='left',
                               on='主账号',
                               validate='m:1')
@@ -257,7 +268,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
                 elif bank_para.sheet_name_is == '账号':
                     tmp_trans_sheet['账号'] = sheet
                 tmp_trans_list_by_sheet.append(tmp_trans_sheet)
-                tmp_line_num += len(tmp_trans_sheet)
+                if tmp_trans_sheet.iloc[0][0] not in st.NONE_TRANS_WORDS:
+                    tmp_line_num += len(tmp_trans_sheet)
                 continue
     tmp_transactions = pd.concat(tmp_trans_list_by_sheet,
                                  ignore_index=True,
@@ -313,7 +325,7 @@ def parse_base_dir(dir_path: pathlib.Path,
                           sort=False)
     tmp_trans['银行名称'] = dir_path.name
     # tmp_trans = tmp_trans.reindex(columns=st.COLUMN_ORDER)
-    tmp_trans['交易日期'] = pd.to_datetime(tmp_trans['交易日期'])
+    tmp_trans['交易日期'] = pd.to_datetime(tmp_trans['交易日期'], errors='coerce')
     tmp_trans['交易金额'] = pd.to_numeric(tmp_trans['交易金额'])
     if not bank_para.has_minus_amounts:
         amount_set_minus(tmp_trans,
@@ -344,6 +356,7 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     tmp_cols = transactions.select_dtypes(include='object').columns
     for col in tmp_cols:
         transactions[col] = transactions[col].str.strip()
+    transactions.sort_values(by='交易日期', inplace=True)
     format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
         len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
     return transactions
