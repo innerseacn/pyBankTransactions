@@ -27,10 +27,11 @@ def get_none_or_zero_lines(amount_col: pd.Series) -> pd.Series:
 def amount_set_minus(trans: pd.DataFrame,
                      second_amount_col: str = None) -> None:
     if '借贷标志' in trans.columns:
-        trans['交易金额'][trans['借贷标志'].isin(st.CHARGE_OFF_WORDS)] *= -1
+        charge_off_lines = trans['借贷标志'].isin(st.CHARGE_OFF_WORDS)
+        trans.loc[charge_off_lines, '交易金额'] *= -1
     elif second_amount_col in trans.columns:
         none_or_zero_lines = get_none_or_zero_lines(trans[second_amount_col])
-        trans['交易金额'][none_or_zero_lines] *= -1
+        trans.loc[none_or_zero_lines, '交易金额'] *= -1
 
 
 def get_account_name(name: str, deco_strings: Union[str, List[str]]) -> str:
@@ -57,7 +58,7 @@ def get_header(excel_file: pd.ExcelFile, sheet: str, test_header: int) -> int:
 # 在入账出账单独成列时，将第二列合并到第一列
 def combine_amount_cols(data: pd.DataFrame, second_amount_col: str) -> None:
     none_or_zero_lines = get_none_or_zero_lines(data['交易金额'])
-    data['交易金额'][none_or_zero_lines] = data[second_amount_col]
+    data.loc[none_or_zero_lines, '交易金额'] = data[second_amount_col]
 
 
 # 以下是特殊解析方法
@@ -81,6 +82,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         '交易机构名称': '交易网点',
         '交易码': '交易代码',
         '交易货币': '币种',
+        '借贷方向': '借贷标志',
         '借贷标识': '借贷标志',
         '交易后余额': '账户余额',
         '对方账户名': '对方户名',
@@ -118,6 +120,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     new_line_accs = excel_file.parse(sheet_name='新线账号',
                                      usecols='A,D,E',
                                      dtype=str)
+    new_line_accs.dropna(axis=0, how='any', subset=['主账号'], inplace=True)
     new_line_accs.drop_duplicates(inplace=True)
     new_line_accs_no_na = new_line_accs.dropna(axis=0,
                                                how='any',
@@ -140,9 +143,11 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
                                    usecols='D:G,I:AE',
                                    dtype=str)
     tmp_line_num += len(newer_trans)
+    new_line_accs_name = new_line_accs[['姓名', '主账号']].rename(columns={
+        '主账号': '主账户账号'
+    }).drop_duplicates()
     newer_trans = pd.merge(newer_trans,
-                           new_line_accs[['姓名', '主账号'
-                                          ]].rename(columns={'主账号': '主账户账号'}),
+                           new_line_accs_name,
                            how='left',
                            on='主账户账号',
                            validate='m:1')
@@ -159,7 +164,7 @@ def parse_trans_ccb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         _begin = 2
         line_num = 0
         for _end in header_lines:
-            tmp_trans = row_data.iloc[_begin:_end - 1]
+            tmp_trans = row_data.iloc[_begin:_end - 1].copy()
             tmp_trans.columns = header.columns
             tmp_acc_str = row_data.iloc[_begin - 2, 0]
             if isinstance(tmp_acc_str, str):
@@ -167,7 +172,7 @@ def parse_trans_ccb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
                 tmp_trans['户名'] = tmp_acc[1]
                 tmp_trans['账号'] = tmp_acc[5]
                 tmp_trans['币种'] = tmp_acc[9]
-            if tmp_trans.iloc[0][0] != '查无结果':
+            if tmp_trans.iloc[0, 0] != '查无结果':
                 line_num += len(tmp_trans)
             trans_list_by_sheet.append(tmp_trans)
             _begin = _end + 1
@@ -262,19 +267,24 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
                                                    header=header,
                                                    dtype=str)
                 tmp_trans_sheet.rename(columns=bank_para.col_map, inplace=True)
+                # 识别非流水表和空数据表
+                if ('交易日期' not in tmp_trans_sheet.columns) or (
+                        tmp_trans_sheet['交易日期'].isna().all()):
+                    tmp_not_parsed += 1
+                    continue
                 # 如果本文件名符合如下规则, 此时认为工作表名就是户名
                 if bank_para.sheet_name_is == '户名':
                     tmp_trans_sheet['户名'] = sheet
                 elif bank_para.sheet_name_is == '账号':
                     tmp_trans_sheet['账号'] = sheet
                 tmp_trans_list_by_sheet.append(tmp_trans_sheet)
-                if tmp_trans_sheet.iloc[0][0] not in st.NONE_TRANS_WORDS:
+                if tmp_trans_sheet.iloc[0, 0] not in st.NONE_TRANS_WORDS:
                     tmp_line_num += len(tmp_trans_sheet)
                 continue
-    tmp_transactions = pd.concat(tmp_trans_list_by_sheet,
-                                 ignore_index=True,
-                                 sort=False)
     try:
+        tmp_transactions = pd.concat(tmp_trans_list_by_sheet,
+                                     ignore_index=True,
+                                     sort=False)
         if bank_para.second_amount_col is not None:
             combine_amount_cols(tmp_transactions, bank_para.second_amount_col)
         tmp_transactions.dropna(axis=0,
@@ -294,6 +304,9 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
                 len(tmp_transactions)) == (bank_para.footer *
                                            len(tmp_trans_list_by_sheet)):
             tmp_line_num = len(tmp_transactions)
+    except ValueError:
+        format_progress('无可用流水数据，跳过文件\n                ', True)
+        tmp_transactions = []
     except KeyError as k:
         format_progress('字段{}映射错误，跳过文件\n                '.format(k), True)
     format_progress('工作表解析成功{}/失败{}，解析流水{}/{}条'.format(
@@ -331,9 +344,18 @@ def parse_base_dir(dir_path: pathlib.Path,
         amount_set_minus(tmp_trans,
                          second_amount_col=bank_para.second_amount_col)
     format_progress('    分析结束，共解析{}/{}条'.format(len(tmp_trans), tmp_all_nums))
-    if len(tmp_trans) < tmp_all_nums:
+    # 检测结果正确性
+    na_nums = tmp_trans.reindex(
+        columns=['银行名称', '户名', '交易日期', '交易金额']).isna().sum()
+    no_acc = tmp_trans.reindex(columns=['账号', '卡号']).isna().all(axis=1).sum()
+    na_nums.loc['账号和卡号'] = no_acc
+    na_nums = na_nums[na_nums > 0]
+    if len(na_nums) > 0:
+        format_progress('    以下关键字段存在空值：' + str(na_nums.to_dict()))
+    if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0:
         format_progress(
-            '                   ^----------------------------- 请查找问题，若无问题请忽略')
+            '                   ^----------------------------- 请查找问题，或调整不规范数据！'
+        )
     return tmp_trans
 
 
