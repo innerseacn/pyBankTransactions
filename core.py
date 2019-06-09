@@ -288,7 +288,6 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
         if bank_para.second_amount_col is not None:
             combine_amount_cols(tmp_transactions, bank_para.second_amount_col)
         tmp_transactions.dropna(axis=0,
-                                how='any',
                                 subset=['交易日期', '交易金额'],
                                 inplace=True)
         # 如果流水中不包含户名列，则此项不为空，此时使用文件名或父目录名截取户名
@@ -337,7 +336,6 @@ def parse_base_dir(dir_path: pathlib.Path,
                           ignore_index=True,
                           sort=False)
     tmp_trans['银行名称'] = dir_path.name
-    # tmp_trans = tmp_trans.reindex(columns=st.COLUMN_ORDER)
     tmp_trans['交易日期'] = pd.to_datetime(tmp_trans['交易日期'], errors='coerce')
     tmp_trans['交易金额'] = pd.to_numeric(tmp_trans['交易金额'])
     if not bank_para.has_minus_amounts:
@@ -345,8 +343,7 @@ def parse_base_dir(dir_path: pathlib.Path,
                          second_amount_col=bank_para.second_amount_col)
     format_progress('    分析结束，共解析{}/{}条'.format(len(tmp_trans), tmp_all_nums))
     # 检测结果正确性
-    na_nums = tmp_trans.reindex(
-        columns=['银行名称', '户名', '交易日期', '交易金额']).isna().sum()
+    na_nums = tmp_trans.reindex(columns=bank_para.check_cols).isna().sum()
     no_acc = tmp_trans.reindex(columns=['账号', '卡号']).isna().all(axis=1).sum()
     na_nums.loc['账号和卡号'] = no_acc
     na_nums = na_nums[na_nums > 0]

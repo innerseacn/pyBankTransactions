@@ -22,6 +22,9 @@ COL_MAP_COMMON = {
     '代办人身份证件/证明文件号码': '代办人证件',
     '资金来源和用途': '摘要'
 }
+CHECK_COLS_COMMON = ['银行名称', '户名', '借贷标志', '交易日期', '交易金额']
+CHECK_COLS_NO_SIGN = ['银行名称', '户名', '交易日期', '交易金额', '账户余额']
+CHECK_COLS = ['银行名称', '户名', '借贷标志', '交易日期', '交易金额', '账户余额']
 
 
 class BankPara:
@@ -33,7 +36,8 @@ class BankPara:
                  deco_strings: Union[str, List[str]] = None,
                  use_dir_name: bool = False,
                  special_func: str = None,
-                 footer: int = 0) -> None:
+                 footer: int = 0,
+                 check_cols: List[str] = CHECK_COLS) -> None:
         # 列名映射字典{'原列名':'新列名'}，将源文件列名映射到COLUMN_ORDER中的输出列名
         self.col_map = col_map
         # 工作表名的内容是什么（户名、账号）
@@ -50,6 +54,8 @@ class BankPara:
         self.special_func = special_func
         # 需要跳过的页脚行数
         self.footer = footer
+        # 需要自检的全不为空的字段
+        self.check_cols = check_cols
 
 
 BANK_PARAS = {}
@@ -142,7 +148,8 @@ BANK_PARAS['交通银行'] = BankPara(
         '货币码': '币种',
         '技术摘要': '摘要'
     },
-    deco_strings='流水')
+    deco_strings='流水',
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['廊坊银行'] = BankPara(
     col_map={
         '客户账号': '账号',
@@ -160,13 +167,16 @@ BANK_PARAS['廊坊银行'] = BankPara(
     deco_strings='活期账户流水')
 BANK_PARAS['渤海银行'] = BankPara(
     col_map=COL_MAP_COMMON,
-    deco_strings='报告可疑交易逐笔明细表—')
+    deco_strings='报告可疑交易逐笔明细表—',
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['光大银行'] = BankPara(
     col_map=COL_MAP_COMMON,
-    deco_strings='交易明细')
+    deco_strings='交易明细',
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['河北银行'] = BankPara(
     col_map=COL_MAP_COMMON,
-    deco_strings='：银行业金融机构报告可疑交易逐笔明细表')
+    deco_strings='：银行业金融机构报告可疑交易逐笔明细表',
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['民生银行'] = BankPara(
     col_map={
         '客户姓名': '户名',
@@ -175,7 +185,8 @@ BANK_PARAS['民生银行'] = BankPara(
         '原币交易金额': '交易金额',
         '对方名称': '对方户名',
         '对方银行名称': '对方开户行'
-    })
+    },
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['浦发银行'] = BankPara(
     col_map={
         '调查户名': '户名',
@@ -183,10 +194,12 @@ BANK_PARAS['浦发银行'] = BankPara(
         '金额': '交易金额',
         '对方开户银行': '对方开户行',
         '开户银行': '交易网点',
-    })
+    },
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['天津农商银行'] = BankPara(
     col_map=COL_MAP_COMMON,
-    deco_strings='银行业金融机构报告可疑交易逐笔明细表——')
+    deco_strings='银行业金融机构报告可疑交易逐笔明细表——',
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['天津银行'] = BankPara(
     col_map={
         '姓名': '户名',
@@ -201,7 +214,8 @@ BANK_PARAS['天津银行'] = BankPara(
         '代办人姓名': '代办人',
         '代办人身份证件/证明文件号码': '代办人证件',
         '资金来源和用途': '摘要'
-    })
+    },
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['兴业银行'] = BankPara(
     col_map={
         '交易机构编号': '交易网点',
@@ -219,7 +233,8 @@ BANK_PARAS['兴业银行'] = BankPara(
 BANK_PARAS['渣打银行'] = BankPara(
     col_map=COL_MAP_COMMON,
     deco_strings='',
-    footer=2)
+    footer=2,
+    check_cols=CHECK_COLS_COMMON)
 BANK_PARAS['中信银行'] = BankPara(
     col_map={
         '交易码': '交易代码',
@@ -251,7 +266,8 @@ BANK_PARAS['招商银行'] = BankPara(
     },
     has_minus_amounts=True,
     deco_strings='',
-    use_dir_name=True)
+    use_dir_name=True,
+    check_cols=CHECK_COLS_NO_SIGN)
 BANK_PARAS['农业银行'] = BankPara(
     col_map={
         '产品号': '卡号',
@@ -264,7 +280,8 @@ BANK_PARAS['农业银行'] = BankPara(
         '对方省市代号': '交易地区',
     },
     second_amount_col='贷方交易金额',
-    footer=1)
+    footer=1,
+    check_cols=CHECK_COLS_NO_SIGN)
 BANK_PARAS['威海银行'] = BankPara(
     col_map={
         '币别': '币种',
@@ -278,7 +295,13 @@ BANK_PARAS['威海银行'] = BankPara(
     },
     sheet_name_is='账号',
     deco_strings='流水',
-    second_amount_col='贷方发生额')
-BANK_PARAS['中国银行'] = BankPara(special_func='中国银行')
-BANK_PARAS['建设银行'] = BankPara(special_func='建设银行')
-BANK_PARAS['邮储银行'] = BankPara(special_func='邮储银行')
+    second_amount_col='贷方发生额',
+    check_cols=CHECK_COLS_NO_SIGN)
+BANK_PARAS['中国银行'] = BankPara(
+    special_func='中国银行')
+BANK_PARAS['建设银行'] = BankPara(
+    special_func='建设银行',
+    check_cols=CHECK_COLS_NO_SIGN)
+BANK_PARAS['邮储银行'] = BankPara(
+    special_func='邮储银行',
+    check_cols=CHECK_COLS_NO_SIGN)
