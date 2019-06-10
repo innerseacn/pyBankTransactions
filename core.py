@@ -27,7 +27,7 @@ def get_none_or_zero_lines(amount_col: pd.Series) -> pd.Series:
 def amount_set_minus(trans: pd.DataFrame,
                      second_amount_col: str = None) -> None:
     if '借贷标志' in trans.columns:
-        charge_off_lines = trans['借贷标志'].isin(st.CHARGE_OFF_WORDS)
+        charge_off_lines = trans['借贷标志'].str.strip().isin(st.CHARGE_OFF_WORDS)
         trans.loc[charge_off_lines, '交易金额'] *= -1
     elif second_amount_col in trans.columns:
         none_or_zero_lines = get_none_or_zero_lines(trans[second_amount_col])
@@ -287,9 +287,7 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
                                      sort=False)
         if bank_para.second_amount_col is not None:
             combine_amount_cols(tmp_transactions, bank_para.second_amount_col)
-        tmp_transactions.dropna(axis=0,
-                                subset=['交易日期', '交易金额'],
-                                inplace=True)
+        tmp_transactions.dropna(axis=0, subset=['交易日期', '交易金额'], inplace=True)
         # 如果流水中不包含户名列，则此项不为空，此时使用文件名或父目录名截取户名
         if '户名' not in tmp_transactions.columns:
             if bank_para.use_dir_name:
@@ -376,6 +374,8 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     for col in tmp_cols:
         transactions[col] = transactions[col].str.strip()
     transactions.sort_values(by='交易日期', inplace=True)
+    # 扩展原始列加速分析
+    transactions.insert(9, '金额绝对值', transactions['交易金额'].abs())
     format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
         len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
     return transactions
