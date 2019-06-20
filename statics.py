@@ -72,17 +72,6 @@ BANK_PARAS['北京银行'] = BankPara(
         '交易附言': '附言'
     },
     sheet_name_is='户名')
-BANK_PARAS['华夏银行'] = BankPara(
-    col_map={
-        '客户名称': '户名',
-        '过账日期': '交易日期',
-        '业务类型': '交易方式',
-        '发生额': '交易金额',
-        '余额': '账户余额',
-        '对方户名(或商户名称)': '对方户名',
-        '对方账号(或商户编号)': '对方账号',
-        '对方银行': '对方开户行'
-    })
 BANK_PARAS['工商银行'] = BankPara(
     col_map={
         '服务界面': '交易方式',
@@ -305,3 +294,10 @@ BANK_PARAS['建设银行'] = BankPara(
 BANK_PARAS['邮储银行'] = BankPara(
     special_func='邮储银行',
     check_cols=CHECK_COLS_NO_SIGN)
+BANK_PARAS['平安银行'] = BankPara(
+    special_func='平安银行',
+    second_amount_col='贷方发生额',
+    check_cols=CHECK_COLS_NO_SIGN)
+BANK_PARAS['华夏银行'] = BankPara(
+    special_func='华夏银行',
+    check_cols=CHECK_COLS)
