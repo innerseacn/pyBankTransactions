@@ -440,12 +440,18 @@ def parse_base_dir(dir_path: pathlib.Path,
     no_acc = tmp_trans.reindex(columns=['账号', '卡号']).isna().all(axis=1).sum()
     na_nums.loc['账号和卡号'] = no_acc
     na_nums = na_nums[na_nums > 0]
+    na_cols = bank_para.need_cols - set(tmp_trans.columns)
     nag_amounts = len(tmp_trans[tmp_trans['交易金额'] < 0])
+    if len(tmp_trans) < tmp_all_nums:
+        format_progress('    存在未解析数据行。')
     if len(na_nums) > 0:
         format_progress('    以下关键字段存在空值：' + str(na_nums.to_dict()))
+    if len(na_cols) > 0:
+        format_progress('    以下所需字段未正确转换：' + str(na_cols))
     if nag_amounts == 0:
         format_progress('    交易金额全为正值。')
-    if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0 or nag_amounts == 0:
+    if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0 or len(
+            na_cols) > 0 or nag_amounts == 0:
         format_progress(
             '                   ^------------------------- 请查找问题，或调整不规范数据！')
     return tmp_trans
