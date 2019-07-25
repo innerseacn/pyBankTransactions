@@ -225,6 +225,8 @@ def parse_trans_psbc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     tmp_line_num = 0
     for sheet in excel_file.sheet_names:
         tmp_acc_strs = excel_file.parse(sheet_name=sheet, header=None, nrows=4)
+        if len(tmp_acc_strs) == 0:
+            continue
         _tmp_str = tmp_acc_strs.iloc[1, 0].split(':')
         _name = _tmp_str[2]
         _account = _tmp_str[1].split()[0]
@@ -381,6 +383,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
         if bank_para.second_amount_col is not None:
             combine_amount_cols(tmp_transactions, bank_para.second_amount_col)
         tmp_transactions.dropna(axis=0, subset=['交易日期', '交易金额'], inplace=True)
+        # _tmp_thresh = len(tmp_transactions.columns) / 3
+        # tmp_transactions.dropna(axis=0, thresh=_tmp_thresh, inplace=True)
         # 如果流水中不包含户名列，则此项不为空，此时使用文件名或父目录名截取户名
         if '户名' not in tmp_transactions.columns:
             if bank_para.use_dir_name:
@@ -467,12 +471,17 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
                              ignore_index=True,
                              sort=False)
     transactions = transactions.reindex(columns=st.COLUMN_ORDER)
+    transactions.dropna(axis=1, how='all', inplace=True)
     tmp_cols = transactions.select_dtypes(include='object').columns
     for col in tmp_cols:
         transactions[col] = transactions[col].str.strip()
     transactions.sort_values(by='交易日期', inplace=True)
-    # 扩展原始列加速分析
+    # 扩展原始列简化后续分析
     transactions.insert(9, '金额绝对值', transactions['交易金额'].abs())
     format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
         len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
     return transactions
+
+
+def write_excel(df: pd.DataFrame, path: pathlib.Path) -> None:
+    df.to_excel(path / '规范交易流水（张楠制作）.xlsx', index=False)
