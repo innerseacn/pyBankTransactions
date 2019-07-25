@@ -477,8 +477,13 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     for col in tmp_cols:
         transactions[col] = transactions[col].str.strip()
     transactions.sort_values(by='交易日期', inplace=True)
+    transactions.dropna(axis=1, how='all', inplace=True)
     # 扩展原始列加速分析
     transactions.insert(9, '金额绝对值', transactions['交易金额'].abs())
     format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
         len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
     return transactions
+
+
+def write_excel(df: pd.DataFrame, path: pathlib.Path) -> None:
+    df.to_excel(path / '规范交易流水（张楠制作）.xlsx', index=False, engine='xlsxwriter')

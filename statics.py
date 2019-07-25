@@ -3,11 +3,11 @@ from typing import List, Dict, Union, Set
 TEST_HEADER = 3
 CHARGE_OFF_WORDS = {'付', '支出', '借', '借方', '出账', '转出', 'D', '0'}
 NONE_TRANS_WORDS = {'无交易'}
-COLUMN_ORDER = {
+COLUMN_ORDER = [
     '银行名称', '户名', '账号', '卡号', '交易日期', '交易方式', '借贷标志', '币种', '交易金额', '账户余额',
-    '对方户名', '对方账号', '对方开户行', '交易地区', '交易场所', '交易网点', '柜员号', '交易代码', '摘要', '附言',
-    '备注'
-}
+    '对方户名', '对方账号', '对方开户行', '摘要', '附言', '备注', '交易场所', '交易地区', '交易网点', '柜员号',
+    '交易代码'
+]
 # "银行业金融机构报告可疑交易逐笔明细表"的默认列映射
 COL_MAP_COMMON = {
     '资金收付标志': '借贷标志',
@@ -128,7 +128,7 @@ BANK_PARAS['哈尔滨银行'] = BankPara(
         '附言': '备注',
     },
     footer=5,
-    need_cols=(NEED_COLS - {'交易代码'}))
+    need_cols=(NEED_COLS - {'交易代码', '对方户名'}))
 BANK_PARAS['交通银行'] = BankPara(
     col_map={
         '主记账帐号': '账号',
@@ -273,7 +273,7 @@ BANK_PARAS['招商银行'] = BankPara(
     deco_strings='',
     use_dir_name=True,
     check_cols=CHECK_COLS_NO_SIGN,
-    need_cols=(NEED_COLS - {'交易代码', '交易方式','交易网点'}))
+    need_cols=(NEED_COLS - {'交易代码', '交易方式', '交易网点'}))
 BANK_PARAS['农业银行'] = BankPara(
     col_map={
         '产品号': '卡号',
