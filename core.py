@@ -412,7 +412,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
 
 
 def parse_base_dir(dir_path: pathlib.Path,
-                   bank_para: st.BankPara) -> pd.DataFrame:
+                   bank_para: st.BankPara) -> (pd.DataFrame, bool):
+    _has_mistakes = False
     format_progress('开始分析{}账户……'.format(dir_path.name))
     tmp_trans_list_by_file = []  # 流水列表（按文件）
     tmp_all_nums = 0  # 所有流水行数
@@ -458,18 +459,24 @@ def parse_base_dir(dir_path: pathlib.Path,
             na_cols) > 0 or nag_amounts == 0:
         format_progress(
             '✘═════════════════╩══════════════════════════请查找问题，或调整不规范数据！')
-    return tmp_trans
+        _has_mistakes = True
+    else:
+        format_progress('  ✔')
+    return tmp_trans, _has_mistakes
 
 
 def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
+    _num_mistakes = 0
     format_progress('开始分析银行流水……')
     tmp_trans_list_by_bank = []
     tmp_banks_no_support = 0
     for dir in base_path.iterdir():
         try:
             if dir.is_dir():
-                tmp_trans_list_by_bank.append(
-                    parse_base_dir(dir, st.BANK_PARAS[dir.name]))
+                _tmp_trans, _has_mistakes = parse_base_dir(dir, st.BANK_PARAS[dir.name])
+                if _has_mistakes:
+                    _num_mistakes += 1
+                tmp_trans_list_by_bank.append(_tmp_trans)
         except KeyError as k:
             tmp_banks_no_support += 1
             format_progress('暂不支持{}'.format(k))
@@ -485,8 +492,8 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     transactions.dropna(axis=1, how='all', inplace=True)
     # 扩展原始列加速分析
     transactions.insert(9, '金额绝对值', transactions['交易金额'].abs())
-    format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
-        len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
+    format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    存在解析错误银行{}家\n    发现暂不支持银行{}家'.format(
+        len(tmp_trans_list_by_bank), len(transactions), _num_mistakes, tmp_banks_no_support))
     return transactions
 
 
