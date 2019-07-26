@@ -457,7 +457,7 @@ def parse_base_dir(dir_path: pathlib.Path,
     if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0 or len(
             na_cols) > 0 or nag_amounts == 0:
         format_progress(
-            '                   ^------------------------- 请查找问题，或调整不规范数据！')
+            '✘═════════════════╩══════════════════════════请查找问题，或调整不规范数据！')
     return tmp_trans
 
 
