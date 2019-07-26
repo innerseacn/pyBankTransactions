@@ -444,12 +444,18 @@ def parse_base_dir(dir_path: pathlib.Path,
     no_acc = tmp_trans.reindex(columns=['账号', '卡号']).isna().all(axis=1).sum()
     na_nums.loc['账号和卡号'] = no_acc
     na_nums = na_nums[na_nums > 0]
+    na_cols = bank_para.need_cols - set(tmp_trans.columns)
     nag_amounts = len(tmp_trans[tmp_trans['交易金额'] < 0])
+    if len(tmp_trans) < tmp_all_nums:
+        format_progress('    存在未解析数据行。')
     if len(na_nums) > 0:
         format_progress('    以下关键字段存在空值：' + str(na_nums.to_dict()))
+    if len(na_cols) > 0:
+        format_progress('    以下所需字段未正确转换：' + str(na_cols))
     if nag_amounts == 0:
         format_progress('    交易金额全为正值。')
-    if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0 or nag_amounts == 0:
+    if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0 or len(
+            na_cols) > 0 or nag_amounts == 0:
         format_progress(
             '                   ^------------------------- 请查找问题，或调整不规范数据！')
     return tmp_trans
@@ -476,7 +482,8 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     for col in tmp_cols:
         transactions[col] = transactions[col].str.strip()
     transactions.sort_values(by='交易日期', inplace=True)
-    # 扩展原始列简化后续分析
+    transactions.dropna(axis=1, how='all', inplace=True)
+    # 扩展原始列加速分析
     transactions.insert(9, '金额绝对值', transactions['交易金额'].abs())
     format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    发现暂不支持银行{}家'.format(
         len(tmp_trans_list_by_bank), len(transactions), tmp_banks_no_support))
@@ -484,4 +491,4 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
 
 
 def write_excel(df: pd.DataFrame, path: pathlib.Path) -> None:
-    df.to_excel(path / '规范交易流水（张楠制作）.xlsx', index=False)
+    df.to_excel(path / '规范交易流水（张楠制作）.xlsx', index=False, engine='xlsxwriter')
