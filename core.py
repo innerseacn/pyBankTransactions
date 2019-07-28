@@ -473,7 +473,8 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     for dir in base_path.iterdir():
         try:
             if dir.is_dir():
-                _tmp_trans, _has_mistakes = parse_base_dir(dir, st.BANK_PARAS[dir.name])
+                _tmp_trans, _has_mistakes = parse_base_dir(
+                    dir, st.BANK_PARAS[dir.name])
                 if _has_mistakes:
                     _num_mistakes += 1
                 tmp_trans_list_by_bank.append(_tmp_trans)
@@ -492,8 +493,10 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     transactions.dropna(axis=1, how='all', inplace=True)
     # 扩展原始列加速分析
     transactions.insert(9, '金额绝对值', transactions['交易金额'].abs())
-    format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条\n    存在解析错误银行{}家\n    发现暂不支持银行{}家'.format(
-        len(tmp_trans_list_by_bank), len(transactions), _num_mistakes, tmp_banks_no_support))
+    format_progress(
+        '全部分析完成，\n    成功解析银行{}家，流水{}条\n    存在解析错误银行{}家\n    发现暂不支持银行{}家'.
+        format(len(tmp_trans_list_by_bank), len(transactions), _num_mistakes,
+               tmp_banks_no_support))
     return transactions
 
 
