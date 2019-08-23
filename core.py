@@ -71,7 +71,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         '姓名': '户名',
         '客户姓名': '户名',
         '交易后可抵用金额': '账户余额',
-        '主账号': '账号',
+        '子账号': '账号',
         '货币': '币种',
         '交易类型': '交易方式',
         '交易发生日': '交易日期',
@@ -79,7 +79,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         '借贷': '借贷标志',
         '交易后金额': '账户余额',
         '对方姓名': '对方户名',
-        '主账户账号': '账号',
+        '交易账号': '账号',
         '交易类型描述': '交易方式',
         '交易柜员': '柜员号',
         '交易机构名称': '交易网点',
@@ -91,71 +91,102 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         '对方账户名': '对方户名',
     }
     tmp_line_num = 0
-    # 解析旧线
-    if '旧线账号' in excel_file.sheet_names:
-        old_line_accs = excel_file.parse(sheet_name='旧线账号',
-                                         usecols='C,D',
-                                         dtype=str)
-    elif '旧账号' in excel_file.sheet_names:
-        old_line_accs = excel_file.parse(sheet_name='旧账号',
-                                         usecols='C,D',
-                                         dtype=str)
-    else:
-        format_progress(excel_file.sheet_names)
-        raise Exception('中国银行不包含旧线账号或旧账号')
-    old_line_accs.dropna(axis=0, how='any', subset=['卡号'], inplace=True)
-    old_line_accs.drop_duplicates(inplace=True)
-    old_line_accs['卡号'] = old_line_accs.groupby('账号')['卡号'].apply(
-        '/'.join).reset_index()
-    old_line_trans = excel_file.parse(sheet_name='旧线交易',
-                                      usecols='A:M',
-                                      dtype=str)
-    tmp_line_num += len(old_line_trans)
-    old_line_trans = pd.merge(old_line_trans,
-                              old_line_accs,
-                              how='left',
-                              on='账号',
-                              validate='m:1')
-    old_line_trans.rename(columns=col_map, inplace=True)
-    tmp_trans_list_by_sheet.append(old_line_trans)
 
     # 解析新线
-    new_line_accs = excel_file.parse(sheet_name='新线账号',
-                                     usecols='A,D,E',
-                                     dtype=str)
-    new_line_accs.dropna(axis=0, how='any', subset=['主账号'], inplace=True)
-    new_line_accs.drop_duplicates(inplace=True)
-    new_line_accs_no_na = new_line_accs.dropna(axis=0,
-                                               how='any',
-                                               subset=['卡号'])
-    # 存在同一账号对应多个卡号的情况，将其合并到一行
-    new_line_accs_no_na = new_line_accs_no_na.groupby(
-        ['姓名', '主账号'])['卡号'].apply('/'.join).reset_index()
-    new_line_trans = excel_file.parse(sheet_name='新线交易', dtype=str)
-    tmp_line_num += len(new_line_trans)
-    new_line_trans = pd.merge(new_line_trans,
-                              new_line_accs_no_na[['卡号', '主账号']],
-                              how='left',
-                              on='主账号',
-                              validate='m:1')
-    new_line_trans.rename(columns=col_map, inplace=True)
-    tmp_trans_list_by_sheet.append(new_line_trans)
+    if '新线交易' in excel_file.sheet_names:
+        if '新线账号' in excel_file.sheet_names:
+            new_line_accs = excel_file.parse(sheet_name='新线账号',
+                                             usecols='A,D,F,I',
+                                             dtype=str)
+            new_line_accs.dropna(axis=0, how='any', subset=[
+                                 '子账号'], inplace=True)
+            new_line_accs.drop_duplicates(inplace=True)
+            new_line_accs_no_na = new_line_accs.dropna(axis=0,
+                                                       how='any',
+                                                       subset=['卡号'])
+            # 存在同一账号对应多个卡号的情况，将其合并到一行
+            new_line_accs_no_na_group = new_line_accs_no_na.groupby(
+                ['姓名', '子账号'])['卡号'].apply('/'.join).reset_index()
+        else:
+            format_progress('本文件不包含新线账号')
+        new_line_trans = excel_file.parse(sheet_name='新线交易', dtype=str)
+        tmp_line_num += len(new_line_trans)
+        new_line_trans = pd.merge(new_line_trans,
+                                  new_line_accs_no_na_group[['卡号', '子账号']],
+                                  how='left',
+                                  on='子账号',
+                                  validate='m:1')
+        new_line_trans.rename(columns=col_map, inplace=True)
+        tmp_trans_list_by_sheet.append(new_line_trans)
+    elif '新线流水' in excel_file.sheet_names:
+        new_line_trans = excel_file.parse(sheet_name='新线流水', dtype=str)
+        tmp_line_num += len(new_line_trans)
+        new_line_trans.rename(columns=col_map, inplace=True)
+        tmp_trans_list_by_sheet.append(new_line_trans)
+    else:
+        format_progress('本文件不包含新线交易或新线流水')
+
+    # 解析旧线
+    if '旧线交易' in excel_file.sheet_names:
+        if '旧线账号' in excel_file.sheet_names:
+            old_line_accs = excel_file.parse(sheet_name='旧线账号',
+                                             usecols='C,D',
+                                             dtype=str)
+        elif '旧账号' in excel_file.sheet_names:
+            old_line_accs = excel_file.parse(sheet_name='旧账号',
+                                             usecols='C,D',
+                                             dtype=str)
+        elif '旧账号' in new_line_accs_no_na.columns:
+            old_line_accs = new_line_accs_no_na[['卡号', '旧账号']]
+            old_line_accs.columns = ['卡号', '账号']
+        else:
+            format_progress('本文件不包含旧线账号或旧账号')
+        old_line_accs.dropna(axis=0, how='any', subset=['卡号'], inplace=True)
+        old_line_accs.drop_duplicates(inplace=True)
+        old_line_accs = old_line_accs.groupby('账号')['卡号'].apply(
+            '/'.join).reset_index()
+        old_line_trans = excel_file.parse(sheet_name='旧线交易',
+                                          usecols='A:M',
+                                          dtype=str)
+        tmp_line_num += len(old_line_trans)
+        old_line_trans = pd.merge(old_line_trans,
+                                  old_line_accs,
+                                  how='left',
+                                  on='账号',
+                                  validate='m:1')
+        old_line_trans.rename(columns=col_map, inplace=True)
+        tmp_trans_list_by_sheet.append(old_line_trans)
+    else:
+        format_progress('本文件不包含旧线交易')
 
     # 解析20150701后交易
-    newer_trans = excel_file.parse(sheet_name='20150701后交易',
-                                   usecols='D:G,I:AE',
-                                   dtype=str)
-    tmp_line_num += len(newer_trans)
-    new_line_accs_name = new_line_accs[['姓名', '主账号']].rename(columns={
-        '主账号': '主账户账号'
-    }).drop_duplicates()
-    newer_trans = pd.merge(newer_trans,
-                           new_line_accs_name,
-                           how='left',
-                           on='主账户账号',
-                           validate='m:1')
-    newer_trans.rename(columns=col_map, inplace=True)
-    tmp_trans_list_by_sheet.append(newer_trans)
+    if '20150701后交易' in excel_file.sheet_names:
+        newer_trans = excel_file.parse(sheet_name='20150701后交易',
+                                       usecols='A:G,I:AE',
+                                       dtype=str)
+        tmp_line_num += len(newer_trans)
+        if pd.isna(newer_trans.loc[0, '姓名']):
+            del newer_trans['姓名']
+            new_line_accs_name = new_line_accs[['姓名', '子账号']].rename(columns={
+                '子账号': '交易账号'
+            }).drop_duplicates()
+            newer_trans = pd.merge(newer_trans,
+                                   new_line_accs_name,
+                                   how='left',
+                                   on='交易账号',
+                                   validate='m:1')
+        newer_trans.rename(columns=col_map, inplace=True)
+        tmp_trans_list_by_sheet.append(newer_trans)
+    elif '20120720后交易流水' in excel_file.sheet_names:
+        newer_trans = excel_file.parse(sheet_name='20120720后交易流水',
+                                       usecols='A:G,I:AE',
+                                       dtype=str)
+        tmp_line_num += len(newer_trans)
+        newer_trans.rename(columns=col_map, inplace=True)
+        tmp_trans_list_by_sheet.append(newer_trans)
+    else:
+        format_progress('20120720后交易流水')
+
     return tmp_line_num
 
 
