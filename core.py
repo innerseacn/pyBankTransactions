@@ -98,8 +98,10 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
             new_line_accs = excel_file.parse(sheet_name='新线账号',
                                              usecols='A,D,F,I',
                                              dtype=str)
-            new_line_accs.dropna(axis=0, how='any', subset=[
-                                 '子账号'], inplace=True)
+            new_line_accs.dropna(axis=0,
+                                 how='any',
+                                 subset=['子账号'],
+                                 inplace=True)
             new_line_accs.drop_duplicates(inplace=True)
             new_line_accs_no_na = new_line_accs.dropna(axis=0,
                                                        how='any',
@@ -124,7 +126,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         new_line_trans.rename(columns=col_map, inplace=True)
         tmp_trans_list_by_sheet.append(new_line_trans)
     else:
-        format_progress('本文件不包含新线交易或新线流水')
+        format_progress('本文件不包含新线交易或新线流水\n   ✘════', True)
 
     # 解析旧线
     if '旧线交易' in excel_file.sheet_names:
@@ -157,7 +159,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         old_line_trans.rename(columns=col_map, inplace=True)
         tmp_trans_list_by_sheet.append(old_line_trans)
     else:
-        format_progress('本文件不包含旧线交易')
+        format_progress('本文件不包含旧线交易\n   ✘════', True)
 
     # 解析20150701后交易
     if '20150701后交易' in excel_file.sheet_names:
@@ -167,9 +169,10 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         tmp_line_num += len(newer_trans)
         if pd.isna(newer_trans.loc[0, '姓名']):
             del newer_trans['姓名']
-            new_line_accs_name = new_line_accs[['姓名', '子账号']].rename(columns={
-                '子账号': '交易账号'
-            }).drop_duplicates()
+            new_line_accs_name = new_line_accs[['姓名',
+                                                '子账号']].rename(columns={
+                                                    '子账号': '交易账号'
+                                                }).drop_duplicates()
             newer_trans = pd.merge(newer_trans,
                                    new_line_accs_name,
                                    how='left',
@@ -185,8 +188,11 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         newer_trans.rename(columns=col_map, inplace=True)
         tmp_trans_list_by_sheet.append(newer_trans)
     else:
-        format_progress('20120720后交易流水')
+        format_progress('本文件不包含20120720后交易流水\n   ✘════', True)
 
+    # 去除账号中的先导0
+    # for _df in tmp_trans_list_by_sheet:
+    #     _df['账号'] = pd.to_numeric(_df['账号'], errors='ignore').apply(str)
     return tmp_line_num
 
 
@@ -344,8 +350,10 @@ def parse_trans_hxb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
             tmp_trans_sheet['户名'] = _name
             tmp_trans_sheet['账号'] = _account
             tmp_trans_sheet['卡号'] = _card_num
+        elif header == -1:
+            continue
         else:
-            format_progress('{}无法解析，跳过\n                '.format(sheet), True)
+            format_progress('{}无法解析，跳过\n   ✘════'.format(sheet), True)
             continue
         tmp_trans_list_by_sheet.append(tmp_trans_sheet)
         tmp_line_num += len(tmp_trans_sheet)
@@ -354,25 +362,26 @@ def parse_trans_hxb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
 
 # 一般银行分析
 def parse_trans_common(excel_file: pd.ExcelFile, bank_para: st.BankPara,
-                       tmp_trans_list_by_sheet) -> (int, int):
+                       tmp_trans_list_by_sheet) -> int:
     tmp_line_num = 0
-    tmp_not_parsed = 0
     for sheet in excel_file.sheet_names:  # 对每一个工作表
         header = get_header(excel_file, sheet, st.TEST_HEADER)  # 寻找表头
         if header == -1:  # 空工作表
             continue
         elif header == -2:  # 含数据但无法解析的工作表
-            tmp_not_parsed += 1
+            format_progress('{}无法解析，跳过\n   ✘════'.format(sheet), True)
             continue
         else:  # 找到表头
             tmp_trans_sheet = excel_file.parse(sheet_name=sheet,
                                                header=header,
                                                dtype=str)
+            if len(tmp_trans_sheet) == 0:
+                continue
             tmp_trans_sheet.rename(columns=bank_para.col_map, inplace=True)
             # 识别非流水表和空数据表
             if ('交易日期' not in tmp_trans_sheet.columns) or (
                     tmp_trans_sheet['交易日期'].isna().all()):
-                tmp_not_parsed += 1
+                # format_progress('{}交易日期不全，跳过\n   ✘════'.format(sheet), True)
                 continue
             # 如果本文件名符合如下规则, 此时认为工作表名就是户名
             if bank_para.sheet_name_is == '户名':
@@ -383,7 +392,7 @@ def parse_trans_common(excel_file: pd.ExcelFile, bank_para: st.BankPara,
             if tmp_trans_sheet.iloc[0, 0] not in st.NONE_TRANS_WORDS:
                 tmp_line_num += len(tmp_trans_sheet)
             continue
-    return tmp_line_num, tmp_not_parsed
+    return tmp_line_num
 
 
 # 解析流水文件，将结果保存在tmp_trans_list_by_file中，并返回总行数
@@ -392,7 +401,6 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
     format_progress('    {}……'.format(trans_file.name), True)
     excel_file = pd.ExcelFile(trans_file)
     tmp_trans_list_by_sheet = []  # 当前文件流水列表（按工作表）
-    tmp_not_parsed = 0  # 当前文件无法解析工作表数
     tmp_line_num = 0  # 当前文件流水行数
     if bank_para.special_func == '中国银行':
         tmp_line_num = parse_trans_boc(excel_file, tmp_trans_list_by_sheet)
@@ -405,8 +413,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
     elif bank_para.special_func == '华夏银行':
         tmp_line_num = parse_trans_hxb(excel_file, tmp_trans_list_by_sheet)
     else:  # 其他银行
-        tmp_line_num, tmp_not_parsed = parse_trans_common(
-            excel_file, bank_para, tmp_trans_list_by_sheet)
+        tmp_line_num = parse_trans_common(excel_file, bank_para,
+                                          tmp_trans_list_by_sheet)
     try:
         tmp_transactions = pd.concat(tmp_trans_list_by_sheet,
                                      ignore_index=True,
@@ -417,7 +425,8 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
         # _tmp_thresh = len(tmp_transactions.columns) / 3
         # tmp_transactions.dropna(axis=0, thresh=_tmp_thresh, inplace=True)
         # 如果流水中不包含户名列，则此项不为空，此时使用文件名或父目录名截取户名
-        if '户名' not in tmp_transactions.columns:
+        if ('户名' not in tmp_transactions.columns
+            ) or tmp_transactions['户名'].hasnans:
             if bank_para.use_dir_name:
                 tmp_name = trans_file.parent.stem
             else:
@@ -431,14 +440,14 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
             tmp_line_num = len(tmp_transactions)
     except ValueError as v:
         format_progress(
-            '无法生成流水，跳过文件\n                （原因：{}）\n                '.format(v),
+            '无法生成流水，跳过文件\n   ✘════════════（原因：{}）\n                '.format(v),
             True)
         tmp_transactions = []
     except KeyError as k:
-        format_progress('字段{}映射错误，跳过文件\n                '.format(k), True)
-    format_progress('工作表解析成功{}/失败{}，解析流水{}/{}条'.format(
-        len(tmp_trans_list_by_sheet), tmp_not_parsed, len(tmp_transactions),
-        tmp_line_num))
+        format_progress('字段{}映射错误，跳过文件\n   ✘════'.format(k), True)
+    format_progress('工作表解析成功{}，解析流水{}/{}条'.format(len(tmp_trans_list_by_sheet),
+                                                  len(tmp_transactions),
+                                                  tmp_line_num))
     return tmp_line_num
 
 
