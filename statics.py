@@ -35,6 +35,8 @@ class BankPara:
                  col_map: Dict[str, str] = None,
                  sheet_name_is: str = None,
                  has_minus_amounts: bool = False,
+                 has_empty_sheets: bool = False,
+                 has_nodata_sheets: bool = False,
                  second_amount_col: str = None,
                  deco_strings: Union[str, List[str]] = None,
                  use_dir_name: bool = False,
@@ -48,6 +50,10 @@ class BankPara:
         self.sheet_name_is = sheet_name_is
         # 金额列支出数额为负数
         self.has_minus_amounts = has_minus_amounts
+        # 存在填满空值的空表
+        self.has_empty_sheets = has_empty_sheets
+        # 存在无效表
+        self.has_nodata_sheets = has_nodata_sheets
         # 当流水中入账和出账各自成一列时，此项赋两列的列名，否则为None
         self.second_amount_col = second_amount_col
         # 在包含户名的文件名中将要被截取掉的多余字串，文件中包含户名传入None，否则需要传入需从文件名截取掉的字串，不需截取转入空串
@@ -82,23 +88,30 @@ BANK_PARAS['北京银行'] = BankPara(
     need_cols=(NEED_COLS_NO_REMARKS - {'交易代码'}))
 BANK_PARAS['工商银行'] = BankPara(
     col_map={
+        '帐号': '账号',
         '服务界面': '交易方式',
+        '渠道': '交易方式',
         '发生额': '交易金额',
         '余额': '账户余额',
         '对方帐户': '对方账号',
         '对方开户行名': '对方开户行',
+        '对方行名': '对方开户行',
         '交易地区号': '交易地区',
         '交易网点号': '交易网点',
         '注释': '备注',
+        '用途': '备注',
         '入账日期': '交易日期',
+        '入帐日期': '交易日期',
         '交易金额': '金额',
         '对方卡号/账号': '对方账号',
+        '对方帐号': '对方账号',
         '对方帐户户名': '对方户名',
         '更新后余额': '账户余额',
         '交易柜员号': '柜员号',
         '交易场所简称': '交易场所',
         '交易描述': '备注',
     },
+    has_nodata_sheets=True,
     deco_strings='')
 BANK_PARAS['广发银行'] = BankPara(
     col_map={
@@ -219,6 +232,7 @@ BANK_PARAS['天津银行'] = BankPara(
         '代办人身份证件/证明文件号码': '代办人证件',
         '资金来源和用途': '摘要'
     },
+    has_empty_sheets=True,
     check_cols=CHECK_COLS_COMMON,
     need_cols=NEED_COLS_NO_REMARKS)
 BANK_PARAS['兴业银行'] = BankPara(

@@ -12,6 +12,10 @@ def format_progress(msg: str, no_return: bool = False) -> None:
         print(msg)
 
 
+def format_error(msg: str) -> None:
+    print('\n   ✘════' + msg + '════', end='')
+
+
 # 在两列金额中，有空值则返回空值；没有空值则返回0值
 def get_none_or_zero_lines(amount_col: pd.Series) -> pd.Series:
     num = pd.to_numeric(amount_col)
@@ -110,7 +114,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
             new_line_accs_no_na_group = new_line_accs_no_na.groupby(
                 ['姓名', '子账号'])['卡号'].apply('/'.join).reset_index()
         else:
-            format_progress('本文件不包含新线账号')
+            format_error('本文件不包含新线账号')
         new_line_trans = excel_file.parse(sheet_name='新线交易', dtype=str)
         tmp_line_num += len(new_line_trans)
         new_line_trans = pd.merge(new_line_trans,
@@ -126,7 +130,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         new_line_trans.rename(columns=col_map, inplace=True)
         tmp_trans_list_by_sheet.append(new_line_trans)
     else:
-        format_progress('本文件不包含新线交易或新线流水\n   ✘════', True)
+        format_error('本文件不包含新线交易或新线流水')
 
     # 解析旧线
     if '旧线交易' in excel_file.sheet_names:
@@ -142,7 +146,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
             old_line_accs = new_line_accs_no_na[['卡号', '旧账号']]
             old_line_accs.columns = ['卡号', '账号']
         else:
-            format_progress('本文件不包含旧线账号或旧账号')
+            format_error('本文件不包含旧线账号或旧账号')
         old_line_accs.dropna(axis=0, how='any', subset=['卡号'], inplace=True)
         old_line_accs.drop_duplicates(inplace=True)
         old_line_accs = old_line_accs.groupby('账号')['卡号'].apply(
@@ -159,7 +163,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         old_line_trans.rename(columns=col_map, inplace=True)
         tmp_trans_list_by_sheet.append(old_line_trans)
     else:
-        format_progress('本文件不包含旧线交易\n   ✘════', True)
+        format_error('本文件不包含旧线交易')
 
     # 解析20150701后交易
     if '20150701后交易' in excel_file.sheet_names:
@@ -188,7 +192,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         newer_trans.rename(columns=col_map, inplace=True)
         tmp_trans_list_by_sheet.append(newer_trans)
     else:
-        format_progress('本文件不包含20120720后交易流水\n   ✘════', True)
+        format_error('本文件不包含20120720后交易流水')
 
     # 去除账号中的先导0
     # for _df in tmp_trans_list_by_sheet:
@@ -353,7 +357,7 @@ def parse_trans_hxb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         elif header == -1:
             continue
         else:
-            format_progress('{}无法解析，跳过\n   ✘════'.format(sheet), True)
+            format_error('{}无法解析，跳过'.format(sheet))
             continue
         tmp_trans_list_by_sheet.append(tmp_trans_sheet)
         tmp_line_num += len(tmp_trans_sheet)
@@ -368,8 +372,8 @@ def parse_trans_common(excel_file: pd.ExcelFile, bank_para: st.BankPara,
         header = get_header(excel_file, sheet, st.TEST_HEADER)  # 寻找表头
         if header == -1:  # 空工作表
             continue
-        elif header == -2:  # 含数据但无法解析的工作表
-            format_progress('{}无法解析，跳过\n   ✘════'.format(sheet), True)
+        elif header == -2:  # 含数据但表头超过测试数而无法解析的工作表
+            format_error('{}无法解析，跳过'.format(sheet))
             continue
         else:  # 找到表头
             tmp_trans_sheet = excel_file.parse(sheet_name=sheet,
@@ -379,9 +383,13 @@ def parse_trans_common(excel_file: pd.ExcelFile, bank_para: st.BankPara,
                 continue
             tmp_trans_sheet.rename(columns=bank_para.col_map, inplace=True)
             # 识别非流水表和空数据表
-            if ('交易日期' not in tmp_trans_sheet.columns) or (
-                    tmp_trans_sheet['交易日期'].isna().all()):
-                # format_progress('{}交易日期不全，跳过\n   ✘════'.format(sheet), True)
+            if '交易日期' not in tmp_trans_sheet.columns:
+                if not bank_para.has_nodata_sheets:
+                    format_error('{}不包含交易日期，跳过'.format(sheet))
+                continue
+            if tmp_trans_sheet['交易日期'].isna().all():
+                if not bank_para.has_empty_sheets:
+                    format_error('{}交易日期不完整，跳过'.format(sheet))
                 continue
             # 如果本文件名符合如下规则, 此时认为工作表名就是户名
             if bank_para.sheet_name_is == '户名':
@@ -439,12 +447,11 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
                                            len(tmp_trans_list_by_sheet)):
             tmp_line_num = len(tmp_transactions)
     except ValueError as v:
-        format_progress(
-            '无法生成流水，跳过文件\n   ✘════════════（原因：{}）\n                '.format(v),
-            True)
+        format_error('无法生成流水，跳过文件（原因：{}）\n   ✘'.format(v))
+        # raise v
         tmp_transactions = []
     except KeyError as k:
-        format_progress('字段{}映射错误，跳过文件\n   ✘════'.format(k), True)
+        format_error('字段{}映射错误，跳过文件'.format(k))
     format_progress('工作表解析成功{}，解析流水{}/{}条'.format(len(tmp_trans_list_by_sheet),
                                                   len(tmp_transactions),
                                                   tmp_line_num))
@@ -488,17 +495,17 @@ def parse_base_dir(dir_path: pathlib.Path,
     na_cols = bank_para.need_cols - set(tmp_trans.columns)
     nag_amounts = len(tmp_trans[tmp_trans['交易金额'] < 0])
     if len(tmp_trans) < tmp_all_nums:
-        format_progress('    存在未解析数据行。')
+        format_progress('    ✘存在未解析数据行。')
     if len(na_nums) > 0:
-        format_progress('    以下关键字段存在空值：' + str(na_nums.to_dict()))
+        format_progress('    ✘以下关键字段存在空值：' + str(na_nums.to_dict()))
     if len(na_cols) > 0:
-        format_progress('    以下所需字段未正确转换：' + str(na_cols))
+        format_progress('    ✘以下所需字段未正确转换：' + str(na_cols))
     if nag_amounts == 0:
-        format_progress('    交易金额全为正值。')
+        format_progress('    ✘交易金额全为正值。')
     if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0 or len(
             na_cols) > 0 or nag_amounts == 0:
         format_progress(
-            '✘═════════════════╩══════════════════════════请查找问题，或调整不规范数据！')
+            '✘═══╩════════════════════════════════════════请查找问题，或调整不规范数据！')
         _has_mistakes = True
     else:
         format_progress('  ✔')
