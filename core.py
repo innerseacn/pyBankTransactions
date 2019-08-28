@@ -232,10 +232,20 @@ def parse_trans_ccb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         '借贷方标志': '借贷标志',
     }
     tmp_line_num = 0
+    fixed_deposit_str = ''
+    current_deposit_str = ''
+    # 判断是个人还是企业
+    if '个人活期明细信息-新一代' in excel_file.sheet_names:
+        current_deposit_str = '个人活期明细信息-新一代'
+        fixed_deposit_str = '个人定期明细信息-新一代'
+    else:
+        current_deposit_str = '企业活期明细信息'
+        fixed_deposit_str = '企业定期明细信息'
+
     # 分析活期流水
-    header1 = excel_file.parse(sheet_name='个人活期明细信息-新一代', header=9, nrows=0)
+    header1 = excel_file.parse(sheet_name=current_deposit_str, header=9, nrows=0)
     header1.rename(columns=col_map, inplace=True)
-    row_data1 = excel_file.parse(sheet_name='个人活期明细信息-新一代',
+    row_data1 = excel_file.parse(sheet_name=current_deposit_str,
                                  header=None,
                                  skiprows=8,
                                  dtype=str)
@@ -245,9 +255,9 @@ def parse_trans_ccb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     row_data1[5] = first_amount_col
     tmp_line_num += _parse_sheet(row_data1, header1, tmp_trans_list_by_sheet)
     # 分析定期流水
-    header2 = excel_file.parse(sheet_name='个人定期明细信息-新一代', header=9, nrows=0)
+    header2 = excel_file.parse(sheet_name=fixed_deposit_str, header=9, nrows=0)
     header2.rename(columns=col_map, inplace=True)
-    row_data2 = excel_file.parse(sheet_name='个人定期明细信息-新一代',
+    row_data2 = excel_file.parse(sheet_name=fixed_deposit_str,
                                  header=None,
                                  skiprows=8,
                                  dtype=str)
@@ -297,10 +307,11 @@ def parse_trans_pab(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     tmp_line_num = 0
     for sheet in excel_file.sheet_names:
         tmp_acc_strs = excel_file.parse(sheet_name=sheet, header=None, nrows=5)
-        _name = tmp_acc_strs.iloc[1, 7]
-        _account = tmp_acc_strs.iloc[1, 3]
-        _card_num = tmp_acc_strs.iloc[2, 3]
-        _currency = tmp_acc_strs.iloc[4, 7]
+        tmp_acc_strs.dropna(how='all',axis=1,inplace=True)
+        _name = tmp_acc_strs.iloc[1, 3]
+        _account = tmp_acc_strs.iloc[1, 1]
+        _card_num = tmp_acc_strs.iloc[2, 1]
+        _currency = tmp_acc_strs.iloc[4, 3]
         tmp_trans_sheet = excel_file.parse(sheet_name=sheet,
                                            header=6,
                                            dtype=str,
