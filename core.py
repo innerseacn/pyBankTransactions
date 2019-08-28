@@ -143,7 +143,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
                                              usecols='C,D',
                                              dtype=str)
         elif '旧账号' in new_line_accs_no_na.columns:
-            old_line_accs = new_line_accs_no_na[['卡号', '旧账号']]
+            old_line_accs = new_line_accs_no_na[['卡号', '旧账号']].copy()
             old_line_accs.columns = ['卡号', '账号']
         else:
             format_error('本文件不包含旧线账号或旧账号')
@@ -471,7 +471,6 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
 
 def parse_base_dir(dir_path: pathlib.Path,
                    bank_para: st.BankPara) -> (pd.DataFrame, bool):
-    _has_mistakes = False
     format_progress('开始分析{}账户……'.format(dir_path.name))
     tmp_trans_list_by_file = []  # 流水列表（按文件）
     tmp_all_nums = 0  # 所有流水行数
@@ -505,19 +504,25 @@ def parse_base_dir(dir_path: pathlib.Path,
     na_nums = na_nums[na_nums > 0]
     na_cols = bank_para.need_cols - set(tmp_trans.columns)
     nag_amounts = len(tmp_trans[tmp_trans['交易金额'] < 0])
+    _has_mistakes = False
+    if (tmp_trans['户名'].str.find('逐笔明细') != -1).any():
+        format_progress('    ✘户名解析不正确。')
+        _has_mistakes = True
     if len(tmp_trans) < tmp_all_nums:
         format_progress('    ✘存在未解析数据行。')
+        _has_mistakes = True
     if len(na_nums) > 0:
         format_progress('    ✘以下关键字段存在空值：' + str(na_nums.to_dict()))
+        _has_mistakes = True
     if len(na_cols) > 0:
         format_progress('    ✘以下所需字段未正确转换：' + str(na_cols))
+        _has_mistakes = True
     if nag_amounts == 0:
         format_progress('    ✘交易金额全为正值。')
-    if len(tmp_trans) < tmp_all_nums or len(na_nums) > 0 or len(
-            na_cols) > 0 or nag_amounts == 0:
+        _has_mistakes = True
+    if _has_mistakes:
         format_progress(
             '✘═══╩════════════════════════════════════════请查找问题，或调整不规范数据！')
-        _has_mistakes = True
     else:
         format_progress('  ✔')
     return tmp_trans, _has_mistakes
