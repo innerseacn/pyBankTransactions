@@ -41,6 +41,7 @@ class BankPara:
                  deco_strings: Union[str, List[str]] = None,
                  use_dir_name: bool = False,
                  special_func: str = None,
+                 skip_files: str = '✔',
                  footer: int = 0,
                  check_cols: Set[str] = CHECK_COLS,
                  need_cols: Set[str] = NEED_COLS) -> None:
@@ -62,6 +63,8 @@ class BankPara:
         self.use_dir_name = use_dir_name
         # 特殊处理标志，使用专门方法解析
         self.special_func = special_func
+        # 本目录下需要跳过的文件，支持通配符
+        self.skip_files = skip_files
         # 需要跳过的页脚行数
         self.footer = footer
         # 需要自检的全不为空的字段
@@ -346,7 +349,7 @@ BANK_PARAS['建设银行'] = BankPara(
 BANK_PARAS['邮储银行'] = BankPara(
     special_func='邮储银行',
     check_cols=CHECK_COLS_NO_SIGN,
-    need_cols=(NEED_COLS - {'交易代码', '备注'}))
+    need_cols=(NEED_COLS - {'对方户名', '交易代码', '备注'}))
 BANK_PARAS['平安银行'] = BankPara(
     special_func='平安银行',
     second_amount_col='贷方发生额',
@@ -356,3 +359,30 @@ BANK_PARAS['华夏银行'] = BankPara(
     special_func='华夏银行',
     check_cols=CHECK_COLS,
     need_cols=(NEED_COLS_NO_REMARKS - {'交易代码', '交易网点'}))
+BANK_PARAS['锦州银行'] = BankPara(
+    col_map={
+        '交易地点': '交易网点',
+        '交易说明': '摘要',
+        '支出': '交易金额',
+        '交易柜员': '柜员号',
+        '余额': '账户余额',
+    },
+    second_amount_col='存入',
+    check_cols=CHECK_COLS_NO_SIGN,
+    need_cols={'对方户名', '摘要'})
+BANK_PARAS['宁夏银行'] = BankPara(
+    special_func='宁夏银行',
+    check_cols=CHECK_COLS,
+    need_cols=(NEED_COLS_NO_REMARKS - {'交易代码'}))
+BANK_PARAS['津南村镇银行'] = BankPara(
+    col_map={
+        '交易机构': '交易网点',
+        '交易名称': '摘要',
+        'TRCASH': '交易方式',
+        '交易柜员': '柜员号',
+        'DRCRIND': '借贷标志',
+        '客户名称': '户名',
+    },
+    skip_files='*大小额明细*',
+    check_cols=CHECK_COLS_COMMON,
+    need_cols={'交易方式', '摘要', '备注'})
