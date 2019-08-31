@@ -243,8 +243,9 @@ def parse_trans_ccb(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
         fixed_deposit_str = '企业定期明细信息'
 
     # 分析活期流水
-    header1 = excel_file.parse(
-        sheet_name=current_deposit_str, header=9, nrows=0)
+    header1 = excel_file.parse(sheet_name=current_deposit_str,
+                               header=9,
+                               nrows=0)
     header1.rename(columns=col_map, inplace=True)
     row_data1 = excel_file.parse(sheet_name=current_deposit_str,
                                  header=None,
@@ -478,7 +479,7 @@ def parse_trans_file(trans_file: pathlib.Path, bank_para: st.BankPara,
         # tmp_transactions.dropna(axis=0, thresh=_tmp_thresh, inplace=True)
         # 如果流水中不包含户名列，则此项不为空，此时使用文件名或父目录名截取户名
         if ('户名' not in tmp_transactions.columns
-                ) or tmp_transactions['户名'].hasnans:
+            ) or tmp_transactions['户名'].hasnans:
             if bank_para.use_dir_name:
                 tmp_name = trans_file.parent.stem
             else:
@@ -514,7 +515,8 @@ def parse_base_dir(dir_path: pathlib.Path,
                 tmp_all_nums += parse_trans_file(sub_file, bank_para,
                                                  tmp_trans_list_by_file)
         else:  # 对每一个文件
-            if trans_file.match('~*') or trans_file.match(dir_path.name + '账户*'):
+            if trans_file.match('~*') or trans_file.match(dir_path.name +
+                                                          '账户*'):
                 continue  # 如是无用文件则跳过
             elif trans_file.match(bank_para.skip_files):
                 format_progress('    【{}】暂不支持，跳过'.format(trans_file.name))
@@ -591,8 +593,9 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     transactions.dropna(axis=1, how='all', inplace=True)
     # 扩展原始列加速分析
     transactions.insert(9, '金额绝对值', transactions['交易金额'].abs())
-    format_progress('全部分析完成，\n    成功解析银行{}家，流水{}条'.format(
-        len(tmp_trans_list_by_bank), len(transactions)), True)
+    format_progress(
+        '全部分析完成，\n    成功解析银行{}家，流水{}条'.format(len(tmp_trans_list_by_bank),
+                                              len(transactions)), True)
     if _num_mistakes > 0:
         format_error('存在解析错误银行{}家'.format(_num_mistakes))
     if tmp_banks_no_support > 0:
@@ -600,32 +603,63 @@ def format_transactions(base_path: pathlib.Path) -> pd.DataFrame:
     return transactions
 
 
-def write_excel(df: pd.DataFrame, path: pathlib.Path) -> None:
-    df.to_excel(path / '规范交易流水（张楠制作）.xlsx', index=False, engine='xlsxwriter')
+def write_excel(df: pd.DataFrame, path: pathlib.Path,
+                content: str = 't') -> None:
+    if content == 't':
+        format_progress('正在写入【规范交易流水（张楠制作）.xlsx】……')
+        df.to_excel(path / '规范交易流水（张楠制作）.xlsx',
+                    index=False,
+                    engine='xlsxwriter')
+    elif content == 'b':
+        format_progress('正在写入【账户余额合计（张楠制作）.xlsx】……')
+        df.to_excel(path / '账户余额合计（张楠制作）.xlsx', engine='xlsxwriter')
+    format_progress('写入完成')
 
 
 # 解析账户文件
 def parse_accounts_file(base_path: pathlib.Path) -> pd.DataFrame:
-    currency_name = {'CNY', 'EUR', 'USD', 'HKD', 'JPY', 'AUD', 'CAD'}
     format_progress('开始解析银行账户余额……')
     acc_file = base_path / '账户基本情况表.xlsx'
     excel_file = pd.ExcelFile(acc_file)
     tmp_trans_list_by_sheet = []  # 账户列表（按工作表）
     for sheet in excel_file.sheet_names:  # 对每一个工作表
-        tmp_acc_sheet = excel_file.parse(sheet_name=sheet,
-                                         header=3,
-                                         dtype=str)
+        tmp_acc_sheet = excel_file.parse(sheet_name=sheet, header=3, dtype=str)
         if len(tmp_acc_sheet) == 0:
             continue
         tmp_acc_sheet['银行'] = sheet
         tmp_acc_sheet['户名'].fillna(method='ffill', inplace=True)
         tmp_trans_list_by_sheet.append(tmp_acc_sheet)
-    tmp_transactions = pd.concat(tmp_trans_list_by_sheet,
-                                 ignore_index=True,
-                                 sort=False)
+    tmp_acc = pd.concat(tmp_trans_list_by_sheet, ignore_index=True, sort=False)
+    format_progress('成功解析账户{}条'.format(len(tmp_acc)))
+    return tmp_acc
 
-    # tmp_transactions['当前余额'] = pd.to_numeric(tmp_transactions['当前余额'])
-    # tmp_transactions.join(tmp_transactions['当前余额'].str.split(
-    #     '\n', expand=True).stack().reset_index(level=1, drop=True).rename('余额'))
-    format_progress('成功解析账户{}条'.format(len(tmp_transactions)))
-    return tmp_transactions
+
+# 计算账户余额
+def count_balances(base_path: pathlib.Path) -> pd.DataFrame:
+    tmp_acc = parse_accounts_file(base_path)
+    # 去除非数字余额和零余额，只保留户名、银行和余额
+    tmp_acc = tmp_acc[~tmp_acc['当前余额'].str.match(r'^\D+$|^0$', na=True)][[
+        '户名', '银行', '当前余额', '卡号或账号'
+    ]]
+    try:  # 没有特殊符号就一次过
+        tmp_acc['当前余额'] = pd.to_numeric(tmp_acc['当前余额'])
+    except Exception:  # 有币种符号时拆分列
+        _formated_balances = tmp_acc['当前余额'].str.split(
+            '\n', expand=True).stack().reset_index(
+                level=1, drop=True).str.extract(r'(^\D*)(.*)').rename(columns={
+                    0: '币种',
+                    1: '当前余额'
+                })
+        tmp_acc = tmp_acc.drop('当前余额', axis=1).join(_formated_balances)
+        tmp_acc['币种'] = tmp_acc['币种'].str.replace(r'^$', 'CNY')
+        tmp_acc['当前余额'] = pd.to_numeric(tmp_acc['当前余额'])
+        tmp_acc = tmp_acc.reset_index(drop=True)
+    # 拆分建行币种列
+    _currency = tmp_acc['卡号或账号'].str.extract(r'^(\d+)(\D*)')[1]
+    tmp_acc.loc[_currency.str.match(r'^（\D+）$', na=False), '币种'] = _currency
+    tmp_acc['币种'] = tmp_acc['币种'].str.replace('（美元）', 'USD')
+    tmp_acc['币种'] = tmp_acc['币种'].str.replace('（港币）', 'HKD')
+    # 计算各账户余额
+    tmp_acc = tmp_acc.groupby(['户名', '币种'])['当前余额'].sum()
+    format_progress('账户余额计算完毕')
+    return tmp_acc
