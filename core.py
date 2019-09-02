@@ -641,19 +641,17 @@ def count_balances(base_path: pathlib.Path) -> pd.DataFrame:
     tmp_acc = tmp_acc[~tmp_acc['当前余额'].str.match(r'^\D+$|^0$', na=True)][[
         '户名', '银行', '当前余额', '卡号或账号'
     ]]
-    try:  # 没有特殊符号就一次过
-        tmp_acc['当前余额'] = pd.to_numeric(tmp_acc['当前余额'])
-    except Exception:  # 有币种符号时拆分列
-        _formated_balances = tmp_acc['当前余额'].str.split(
-            '\n', expand=True).stack().reset_index(
-                level=1, drop=True).str.extract(r'(^\D*)(.*)').rename(columns={
-                    0: '币种',
-                    1: '当前余额'
-                })
-        tmp_acc = tmp_acc.drop('当前余额', axis=1).join(_formated_balances)
-        tmp_acc['币种'] = tmp_acc['币种'].str.replace(r'^$', 'CNY')
-        tmp_acc['当前余额'] = pd.to_numeric(tmp_acc['当前余额'])
-        tmp_acc = tmp_acc.reset_index(drop=True)
+    # 有币种符号时拆分列
+    _formated_balances = tmp_acc['当前余额'].str.split(
+        '\n', expand=True).stack().reset_index(
+            level=1, drop=True).str.extract(r'(^\D*)(.*)').rename(columns={
+                0: '币种',
+                1: '当前余额'
+            })
+    tmp_acc = tmp_acc.drop('当前余额', axis=1).join(_formated_balances)
+    tmp_acc['币种'] = tmp_acc['币种'].str.replace(r'^$', 'CNY')
+    tmp_acc['当前余额'] = pd.to_numeric(tmp_acc['当前余额'])
+    tmp_acc = tmp_acc.reset_index(drop=True)
     # 拆分建行币种列
     _currency = tmp_acc['卡号或账号'].str.extract(r'^(\d+)(\D*)')[1]
     tmp_acc.loc[_currency.str.match(r'^（\D+）$', na=False), '币种'] = _currency
