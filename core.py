@@ -74,6 +74,7 @@ def parse_trans_boc(excel_file: pd.ExcelFile, tmp_trans_list_by_sheet) -> int:
     col_map = {
         '姓名': '户名',
         '客户姓名': '户名',
+        '名称': '户名',
         '交易后可抵用金额': '账户余额',
         '子账号': '账号',
         '货币': '币种',
