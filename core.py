@@ -662,3 +662,35 @@ def count_balances(base_path: pathlib.Path) -> pd.DataFrame:
     tmp_acc = tmp_acc.groupby(['户名', '币种'])['当前余额'].sum()
     format_progress('账户余额计算完毕')
     return tmp_acc
+
+
+# 根据自身数据补全对手户名
+def fill_target_names(df: pd.DataFrame):
+    format_progress('开始补全对手户名……')
+    # 提取基础户名账号配对
+    base_names = df[['户名', '账号', '卡号']].reset_index(drop=True)
+    base_names = base_names.drop(columns=['账号', '卡号']).join(
+        base_names[['账号', '卡号']].stack().reset_index(
+            level=1, drop=True).rename('账号'))
+
+    # 提取空缺对手户名
+    _tmp_names = df[df['对方账号'].str.isnumeric() == True][['对方户名', '对方账号']]
+    _flag = _tmp_names['对方户名'].isna() | (_tmp_names['对方户名'] == '')
+    target_names = _tmp_names[_flag].reset_index()
+
+    # 提取对手户名账号配对
+    extra_names = _tmp_names[~_flag]
+    extra_names = extra_names[~extra_names['对方账号'].isin(['', '1', '0'])]
+    extra_names = extra_names[~extra_names['对方账号'].str.match(r'^0+$')]
+    extra_names.columns = ['户名', '账号']
+
+    # 合并户名账号配对
+    base_names = base_names.append(
+        extra_names).drop_duplicates(subset=['账号'])
+
+    # 根据已知户名账号配对填充对手户名
+    filled_names = pd.merge(target_names, base_names, how='left',
+                            left_on='对方账号', right_on='账号', validate='m:1'
+                            ).dropna(subset=['户名']).set_index('index')
+    df['对方户名'].loc[filled_names.index] = filled_names['户名']
+    format_progress('已补全对手户名{}条。'.format(len(filled_names)))
